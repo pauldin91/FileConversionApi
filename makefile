@@ -1,10 +1,14 @@
 include app.env
 
 cert:
-	mkdir -p certificates
-	openssl genpkey -algorithm RSA -out certificates/private.key -aes256
-	openssl req -x509 -key certificates/private.key -out certificates/server.crt -days 365
-	openssl x509 -in certificates/server.crt -text -noout
+	rm -rf certificates
+	mkdir certificates
+	#openssl genpkey -algorithm RSA -out certificates/private.key -aes256
+	#openssl req -x509 -key $(CERTIFICATE_PATH)/$(CERTIFICATE_KEY) -out $(CERTIFICATE_PATH)/$(CERTIFICATE_FILE) -days 365
+	#openssl x509 -in $(CERTIFICATE_PATH)/$(CERTIFICATE_FILE) -text -noout
+	openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout $(CERTIFICATE_PATH)/$(CERTIFICATE_KEY) -out $(CERTIFICATE_PATH)/$(CERTIFICATE_FILE) \
+    -subj "/C=US/ST=State/L=City/O=Organization/OU=Department/CN=localhost"
+
 
 
 migrateup:
@@ -53,6 +57,5 @@ build:
 
 clean:
 	rm -rf $(BUILD_DIR)
-	rm -rf $(CERTIFICATE_PATH)
 
 .PHONY: network postgres createdb dropdb migrateup migratedown migrateup1 migratedown1 new_migration db_docs db_schema sqlc test server mock proto evans redis
