@@ -1,14 +1,18 @@
 package main
 
 import (
-	"fmt"
-	"net/http"
+	"context"
 	"os"
-	"path/filepath"
 
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"github.com/FileConversionApi/api"
+	db "github.com/FileConversionApi/db/sqlc"
 	"github.com/FileConversionApi/utils"
 )
 
@@ -22,23 +26,34 @@ func main() {
 	if config.Environment == "development" {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	}
-	mux := http.NewServeMux()
-	mux.Handle("/", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		writer.Write([]byte("Hello, world!"))
-	}))
 
-	httpServer := &http.Server{
-		Addr:    config.HttpServerAddress,
-		Handler: mux,
+	connPool, err := pgxpool.New(context.Background(), config.ConnectionString)
+	if err != nil {
+		log.Fatal().Err(err).Msg("cannot connect to db")
 	}
 
-	// Start the HTTPS server
-	fmt.Printf("Starting server on %s\n", config.HttpServerAddress)
-	certFile := filepath.Join(config.CertPath, config.CertFile)
-	certKey := filepath.Join(config.CertPath, config.CertKey)
+	runDBMigration(config.MigrationLocation, config.ConnectionString)
 
-	err = httpServer.ListenAndServeTLS(certFile, certKey)
+	store := db.NewStore(connPool)
+
+	// Start the HTTPS server
+
+	server := api.NewServer(config, store)
+	err = server.Start()
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to start server")
 	}
+}
+
+func runDBMigration(migrationURL string, dbSource string) {
+	migration, err := migrate.New(migrationURL, dbSource)
+	if err != nil {
+		log.Fatal().Err(err).Msg("cannot create new migrate instance")
+	}
+
+	if err = migration.Up(); err != nil && err != migrate.ErrNoChange {
+		log.Fatal().Err(err).Msg("failed to run migrate up")
+	}
+
+	log.Info().Msg("db migrated successfully")
 }

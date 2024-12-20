@@ -50,12 +50,11 @@ proto:
 test:
 	go test -v -cover -short ./...
 
-build:
-	rm -rf $(BUILD_DIR)
-	mkdir $(BUILD_DIR)
-	go build -o $(BUILD_DIR)/$(EXE)
+build: clean
+	go build -o $(BUILD_DIR)/$(EXE) 
 
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -r $(BUILD_DIR)
+	mkdir $(BUILD_DIR)
 
 .PHONY: network postgres createdb dropdb migrateup migratedown migrateup1 migratedown1 new_migration db_docs db_schema sqlc test server mock proto evans redis

@@ -4,7 +4,8 @@ import "github.com/spf13/viper"
 
 type Config struct {
 	Environment       string `mapstructure:"ENVIRONMENT"`
-	ConnString        string `mapstructure:"CONNECTION_STRING"`
+	ConnectionString  string `mapstructure:"CONNECTION_STRING"`
+	MigrationLocation string `mapstructure:"MIGRATION_LOCATION"`
 	HttpServerAddress string `mapstructure:"HTTP_SERVER_ADDRESS"`
 	CertPath          string `mapstructure:"CERTIFICATE_PATH"`
 	CertFile          string `mapstructure:"CERTIFICATE_FILE"`
