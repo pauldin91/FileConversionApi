@@ -9,16 +9,18 @@ import (
 )
 
 type Server struct {
-	cfg    utils.Config
-	store  db.Store
-	router *gin.Engine
+	cfg            utils.Config
+	store          db.Store
+	router         *gin.Engine
+	tokenGenerator utils.Generator
 }
 
-func NewServer(cfg utils.Config, store db.Store) *Server {
+func NewServer(cfg utils.Config, tokenGenerator utils.Generator, store db.Store) *Server {
 
 	server := &Server{
-		cfg:   cfg,
-		store: store,
+		cfg:            cfg,
+		store:          store,
+		tokenGenerator: tokenGenerator,
 	}
 
 	server.setupRouter()
@@ -37,6 +39,7 @@ func (server *Server) setupRouter() {
 	router := gin.Default()
 
 	router.POST("/users", server.createUser)
+	router.POST("/auth", server.login)
 
 	server.router = router
 

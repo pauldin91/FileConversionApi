@@ -37,8 +37,8 @@ func main() {
 	store := db.NewStore(connPool)
 
 	// Start the HTTPS server
-
-	server := api.NewServer(config, store)
+	gen := utils.NewJwtGenerator(config.SigningKey)
+	server := api.NewServer(config, gen, store)
 	err = server.Start()
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to start server")

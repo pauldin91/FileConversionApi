@@ -10,6 +10,7 @@ type Config struct {
 	CertPath          string `mapstructure:"CERTIFICATE_PATH"`
 	CertFile          string `mapstructure:"CERTIFICATE_FILE"`
 	CertKey           string `mapstructure:"CERTIFICATE_KEY"`
+	SigningKey        string `mapstructure:"SIGNING_KEY"`
 }
 
 func LoadConfig(path string) (config Config, err error) {
