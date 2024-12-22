@@ -1,6 +1,6 @@
 -- name: CreateEntry :one
 INSERT INTO entries (
-  user_username
+  user_id
 ) VALUES (
   $1
 ) RETURNING *;
@@ -9,8 +9,12 @@ INSERT INTO entries (
 SELECT * FROM entries
 WHERE id = $1 LIMIT 1;
 
+-- name: GetEntriesByUser :many
+SELECT * FROM entries
+WHERE user_id = $1;
+
 -- name: ListEntries :many
 SELECT * FROM entries
-WHERE user_username = $1
+WHERE user_id = $1
 LIMIT $2
 OFFSET $3;

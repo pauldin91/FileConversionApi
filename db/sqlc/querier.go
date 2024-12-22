@@ -8,17 +8,23 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
-	CreateEntry(ctx context.Context, userUsername string) (Entry, error)
+	CreateEntry(ctx context.Context, userID pgtype.UUID) (Entry, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	GetDocument(ctx context.Context, id uuid.UUID) (Document, error)
 	GetDocumentByFilename(ctx context.Context, filename string) ([]Document, error)
-	GetDocumentByUsername(ctx context.Context, userUsername string) ([]GetDocumentByUsernameRow, error)
+	GetDocumentById(ctx context.Context, userID pgtype.UUID) ([]GetDocumentByIdRow, error)
+	GetDocumentByUsername(ctx context.Context, username string) ([]GetDocumentByUsernameRow, error)
+	GetEntriesByUser(ctx context.Context, userID pgtype.UUID) ([]Entry, error)
 	GetEntry(ctx context.Context, id uuid.UUID) (Entry, error)
-	GetUser(ctx context.Context, username string) (User, error)
+	GetUserByEmail(ctx context.Context, email string) (User, error)
+	GetUserById(ctx context.Context, id pgtype.UUID) (User, error)
+	GetUserByUsername(ctx context.Context, username string) (User, error)
+	GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error)
 	ListDocuments(ctx context.Context, arg ListDocumentsParams) ([]Document, error)
 	ListEntries(ctx context.Context, arg ListEntriesParams) ([]Entry, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)

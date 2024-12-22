@@ -70,23 +70,67 @@ func (q *Queries) GetDocumentByFilename(ctx context.Context, filename string) ([
 	return items, nil
 }
 
-const getDocumentByUsername = `-- name: GetDocumentByUsername :many
-SELECT filename,entry_id,entries.id,entries.user_username 
+const getDocumentById = `-- name: GetDocumentById :many
+SELECT filename,entry_id,entries.id,entries.user_id
 FROM documents
 LEFT JOIN entries 
 ON documents.entry_id = entries.id
-WHERE user_username = $1
+WHERE user_id = $1
+`
+
+type GetDocumentByIdRow struct {
+	Filename string      `json:"filename"`
+	EntryID  uuid.UUID   `json:"entry_id"`
+	ID       pgtype.UUID `json:"id"`
+	UserID   pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) GetDocumentById(ctx context.Context, userID pgtype.UUID) ([]GetDocumentByIdRow, error) {
+	rows, err := q.db.Query(ctx, getDocumentById, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetDocumentByIdRow{}
+	for rows.Next() {
+		var i GetDocumentByIdRow
+		if err := rows.Scan(
+			&i.Filename,
+			&i.EntryID,
+			&i.ID,
+			&i.UserID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getDocumentByUsername = `-- name: GetDocumentByUsername :many
+SELECT filename,entry_id,entries.id,entries.user_id,users.id,users.username
+FROM documents
+LEFT JOIN entries 
+ON documents.entry_id = entries.id
+LEFT JOIN users 
+ON entries.user_id = users.id
+WHERE username = $1
 `
 
 type GetDocumentByUsernameRow struct {
-	Filename     string      `json:"filename"`
-	EntryID      uuid.UUID   `json:"entry_id"`
-	ID           pgtype.UUID `json:"id"`
-	UserUsername pgtype.Text `json:"user_username"`
+	Filename string      `json:"filename"`
+	EntryID  uuid.UUID   `json:"entry_id"`
+	ID       pgtype.UUID `json:"id"`
+	UserID   pgtype.UUID `json:"user_id"`
+	ID_2     pgtype.UUID `json:"id_2"`
+	Username pgtype.Text `json:"username"`
 }
 
-func (q *Queries) GetDocumentByUsername(ctx context.Context, userUsername string) ([]GetDocumentByUsernameRow, error) {
-	rows, err := q.db.Query(ctx, getDocumentByUsername, userUsername)
+func (q *Queries) GetDocumentByUsername(ctx context.Context, username string) ([]GetDocumentByUsernameRow, error) {
+	rows, err := q.db.Query(ctx, getDocumentByUsername, username)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +142,9 @@ func (q *Queries) GetDocumentByUsername(ctx context.Context, userUsername string
 			&i.Filename,
 			&i.EntryID,
 			&i.ID,
-			&i.UserUsername,
+			&i.UserID,
+			&i.ID_2,
+			&i.Username,
 		); err != nil {
 			return nil, err
 		}

@@ -10,6 +10,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type userRequest struct {
+	Email string `uri:"email" binding:"required,email""`
+}
+
 type createUserRequest struct {
 	Username string `json:"username" binding:"required,alphanum"`
 	Password string `json:"password" binding:"required,min=6"`
@@ -66,6 +70,16 @@ func (server *Server) listUsers(ctx *gin.Context) {
 }
 
 func (server *Server) getUser(ctx *gin.Context) {
+	var req userRequest
 
-	ctx.JSON(http.StatusOK, "")
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, err)
+		return
+	}
+	user, err := server.store.GetUserByEmail(context.Background(), req.Email)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, user)
 }

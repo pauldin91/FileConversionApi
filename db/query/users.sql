@@ -8,9 +8,24 @@ INSERT INTO users (
   $1, $2, $3, $4
 ) RETURNING *;
 
--- name: GetUser :one
+-- name: GetUserByUsername :one
 SELECT * FROM users
 WHERE username = $1 LIMIT 1;
+
+-- name: GetUserById :one
+SELECT * FROM users
+WHERE id = $1 LIMIT 1;
+
+-- name: GetUserByEmail :one
+SELECT * FROM users
+WHERE email = $1 LIMIT 1;
+
+
+-- name: GetUsers :many
+SELECT * FROM users
+LIMIT $1
+OFFSET $2;
+
 
 -- name: UpdateUser :one
 UPDATE users

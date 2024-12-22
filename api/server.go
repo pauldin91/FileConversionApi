@@ -38,8 +38,14 @@ func (server *Server) setupRouter() {
 
 	router := gin.Default()
 
-	router.POST("/users", server.createUser)
+	router.POST(usersRoute, server.createUser)
 	router.POST("/auth", server.login)
+
+	authRoutes := router.Group("/").Use(server.authorize())
+
+	authRoutes.GET(usersRoute, server.listUsers)
+	authRoutes.GET(usersRoute+"/:id", server.getUser)
+	authRoutes.GET(usersRoute, server.listUsers)
 
 	server.router = router
 

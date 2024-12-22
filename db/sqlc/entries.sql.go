@@ -9,50 +9,31 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createEntry = `-- name: CreateEntry :one
 INSERT INTO entries (
-  user_username
+  user_id
 ) VALUES (
   $1
-) RETURNING id, user_username, created_at
+) RETURNING id, created_at, user_id
 `
 
-func (q *Queries) CreateEntry(ctx context.Context, userUsername string) (Entry, error) {
-	row := q.db.QueryRow(ctx, createEntry, userUsername)
+func (q *Queries) CreateEntry(ctx context.Context, userID pgtype.UUID) (Entry, error) {
+	row := q.db.QueryRow(ctx, createEntry, userID)
 	var i Entry
-	err := row.Scan(&i.ID, &i.UserUsername, &i.CreatedAt)
+	err := row.Scan(&i.ID, &i.CreatedAt, &i.UserID)
 	return i, err
 }
 
-const getEntry = `-- name: GetEntry :one
-SELECT id, user_username, created_at FROM entries
-WHERE id = $1 LIMIT 1
+const getEntriesByUser = `-- name: GetEntriesByUser :many
+SELECT id, created_at, user_id FROM entries
+WHERE user_id = $1
 `
 
-func (q *Queries) GetEntry(ctx context.Context, id uuid.UUID) (Entry, error) {
-	row := q.db.QueryRow(ctx, getEntry, id)
-	var i Entry
-	err := row.Scan(&i.ID, &i.UserUsername, &i.CreatedAt)
-	return i, err
-}
-
-const listEntries = `-- name: ListEntries :many
-SELECT id, user_username, created_at FROM entries
-WHERE user_username = $1
-LIMIT $2
-OFFSET $3
-`
-
-type ListEntriesParams struct {
-	UserUsername string `json:"user_username"`
-	Limit        int32  `json:"limit"`
-	Offset       int32  `json:"offset"`
-}
-
-func (q *Queries) ListEntries(ctx context.Context, arg ListEntriesParams) ([]Entry, error) {
-	rows, err := q.db.Query(ctx, listEntries, arg.UserUsername, arg.Limit, arg.Offset)
+func (q *Queries) GetEntriesByUser(ctx context.Context, userID pgtype.UUID) ([]Entry, error) {
+	rows, err := q.db.Query(ctx, getEntriesByUser, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +41,52 @@ func (q *Queries) ListEntries(ctx context.Context, arg ListEntriesParams) ([]Ent
 	items := []Entry{}
 	for rows.Next() {
 		var i Entry
-		if err := rows.Scan(&i.ID, &i.UserUsername, &i.CreatedAt); err != nil {
+		if err := rows.Scan(&i.ID, &i.CreatedAt, &i.UserID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getEntry = `-- name: GetEntry :one
+SELECT id, created_at, user_id FROM entries
+WHERE id = $1 LIMIT 1
+`
+
+func (q *Queries) GetEntry(ctx context.Context, id uuid.UUID) (Entry, error) {
+	row := q.db.QueryRow(ctx, getEntry, id)
+	var i Entry
+	err := row.Scan(&i.ID, &i.CreatedAt, &i.UserID)
+	return i, err
+}
+
+const listEntries = `-- name: ListEntries :many
+SELECT id, created_at, user_id FROM entries
+WHERE user_id = $1
+LIMIT $2
+OFFSET $3
+`
+
+type ListEntriesParams struct {
+	UserID pgtype.UUID `json:"user_id"`
+	Limit  int32       `json:"limit"`
+	Offset int32       `json:"offset"`
+}
+
+func (q *Queries) ListEntries(ctx context.Context, arg ListEntriesParams) ([]Entry, error) {
+	rows, err := q.db.Query(ctx, listEntries, arg.UserID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Entry{}
+	for rows.Next() {
+		var i Entry
+		if err := rows.Scan(&i.ID, &i.CreatedAt, &i.UserID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
