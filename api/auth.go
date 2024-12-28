@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"net/http"
 	"time"
@@ -10,6 +9,7 @@ import (
 	"github.com/FileConversionApi/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type loginRequest struct {
@@ -34,9 +34,9 @@ func (server *Server) login(ctx *gin.Context) {
 		return
 	}
 
-	user, err := server.store.GetUser(context.Background(), req.Username)
+	user, err := server.store.GetUserByUsername(context.Background(), req.Username)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == pgx.ErrNoRows {
 			ctx.JSON(http.StatusNotFound, errors.New("invalid credentials"))
 			return
 		}

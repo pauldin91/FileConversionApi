@@ -2,7 +2,6 @@ package utils
 
 import (
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -38,18 +37,24 @@ func (gen *JwtGenerator) Generate(username string) (string, error) {
 }
 
 func (gen *JwtGenerator) Validate(providedToken string) (bool, error) {
-	token, err := jwt.Parse(providedToken, func(token *jwt.Token) (interface{}, error) {
+	keyFunc := func(token *jwt.Token) (interface{}, error) {
 		// Don't forget to validate the alg is what you expect:
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 
-		return gen.signingKey, nil
-	})
+		return []byte(gen.signingKey), nil
+	}
+	jwtParsed, err := jwt.ParseWithClaims(providedToken, jwt.MapClaims{}, keyFunc)
 	if err != nil {
-		log.Fatal(err)
+
+		return false, jwt.ErrTokenMalformed
 	}
 
-	_, ok := token.Claims.(jwt.MapClaims)
+	_, ok := jwtParsed.Claims.(jwt.MapClaims)
+	if !ok {
+		return false, jwt.ErrTokenMalformed
+	}
+
 	return ok, nil
 }

@@ -44,8 +44,7 @@ func (server *Server) setupRouter() {
 	authRoutes := router.Group("/").Use(server.authorize())
 
 	authRoutes.GET(usersRoute, server.listUsers)
-	authRoutes.GET(usersRoute+"/:id", server.getUser)
-	authRoutes.GET(usersRoute, server.listUsers)
+	authRoutes.GET(usersRoute+"/:email", server.getUser)
 
 	server.router = router
 

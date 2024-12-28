@@ -16,13 +16,13 @@ func (server *Server) authorize() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		header := ctx.GetHeader(authHeader)
 		if len(header) == 0 {
-			ctx.AbortWithStatusJSON(http.StatusForbidden, "forbidden")
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, "unauthorized")
 			return
 		}
 		bearer := strings.Fields(header)
 
-		if len(bearer) != 2 || bearer[0] != authScheme {
-			ctx.AbortWithStatusJSON(http.StatusForbidden, "invalid")
+		if len(bearer) != 2 || strings.ToLower(bearer[0]) != authScheme {
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, "invalid")
 			return
 		}
 		valid, err := server.tokenGenerator.Validate(bearer[1])
@@ -30,7 +30,7 @@ func (server *Server) authorize() gin.HandlerFunc {
 			ctx.AbortWithStatusJSON(http.StatusInternalServerError, "server error")
 			return
 		} else if !valid {
-			ctx.AbortWithStatusJSON(http.StatusUnauthorized, "server error")
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, "invalid")
 			return
 		}
 

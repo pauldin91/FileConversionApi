@@ -64,15 +64,34 @@ func (server *Server) createUser(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, rsp)
 }
 
-func (server *Server) listUsers(ctx *gin.Context) {
+type listUsersRequest struct {
+	PageID   int32 `form:"page_id" binding:"required,min=1"`
+	PageSize int32 `form:"page_size" binding:"required,min=5,max=10"`
+}
 
-	ctx.JSON(http.StatusOK, "")
+func (server *Server) listUsers(ctx *gin.Context) {
+	var req listUsersRequest
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, err)
+		return
+	}
+	arg := db.GetUsersParams{
+		Limit:  req.PageSize,
+		Offset: (req.PageID - 1) * req.PageSize,
+	}
+
+	users, err := server.store.GetUsers(context.Background(), arg)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, users)
 }
 
 func (server *Server) getUser(ctx *gin.Context) {
 	var req userRequest
 
-	if err := ctx.ShouldBindJSON(&req); err != nil {
+	if err := ctx.ShouldBindUri(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, err)
 		return
 	}

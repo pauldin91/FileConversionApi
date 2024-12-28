@@ -4,12 +4,13 @@ go 1.23.1
 
 require (
 	github.com/gin-gonic/gin v1.10.0
-	github.com/golang-migrate/migrate v3.5.4+incompatible
+	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/golang-migrate/migrate/v4 v4.18.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/rs/zerolog v1.33.0
 	github.com/spf13/viper v1.19.0
+	golang.org/x/crypto v0.31.0
 )
 
 require (
@@ -24,7 +25,6 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.23.0 // indirect
 	github.com/goccy/go-json v0.10.4 // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
@@ -54,7 +54,6 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/arch v0.12.0 // indirect
-	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9 // indirect
 	golang.org/x/net v0.32.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
