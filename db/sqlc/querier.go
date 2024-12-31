@@ -16,9 +16,11 @@ type Querier interface {
 	CreateEntry(ctx context.Context, userID pgtype.UUID) (Entry, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	GetDocument(ctx context.Context, id uuid.UUID) (Document, error)
-	GetDocumentByFilename(ctx context.Context, filename string) ([]Document, error)
-	GetDocumentById(ctx context.Context, userID pgtype.UUID) ([]GetDocumentByIdRow, error)
-	GetDocumentByUsername(ctx context.Context, username string) ([]GetDocumentByUsernameRow, error)
+	GetDocumentsByEntryId(ctx context.Context, arg GetDocumentsByEntryIdParams) ([]Document, error)
+	GetDocumentsByFilename(ctx context.Context, filename string) ([]Document, error)
+	GetDocumentsByUserId(ctx context.Context, userID pgtype.UUID) ([]GetDocumentsByUserIdRow, error)
+	GetDocumentsByUsername(ctx context.Context, username string) ([]GetDocumentsByUsernameRow, error)
+	GetEntriesByStatus(ctx context.Context, arg GetEntriesByStatusParams) ([]Entry, error)
 	GetEntriesByUser(ctx context.Context, userID pgtype.UUID) ([]Entry, error)
 	GetEntry(ctx context.Context, id uuid.UUID) (Entry, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
@@ -27,6 +29,8 @@ type Querier interface {
 	GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error)
 	ListDocuments(ctx context.Context, arg ListDocumentsParams) ([]Document, error)
 	ListEntries(ctx context.Context, arg ListEntriesParams) ([]Entry, error)
+	UpdatePageCount(ctx context.Context, arg UpdatePageCountParams) (Document, error)
+	UpdateStatus(ctx context.Context, arg UpdateStatusParams) (Entry, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 }
 

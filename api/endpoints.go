@@ -1,7 +1,7 @@
 package api
 
 const (
-	usersRoute = "/users"
-	entries    = "/entries"
-	documents  = "/documents"
+	usersRoute string = "/users"
+	entries    string = "/entries"
+	documents  string = "/documents"
 )

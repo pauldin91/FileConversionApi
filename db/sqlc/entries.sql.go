@@ -17,18 +17,61 @@ INSERT INTO entries (
   user_id
 ) VALUES (
   $1
-) RETURNING id, created_at, user_id
+) RETURNING id, created_at, user_id, status, operation
 `
 
 func (q *Queries) CreateEntry(ctx context.Context, userID pgtype.UUID) (Entry, error) {
 	row := q.db.QueryRow(ctx, createEntry, userID)
 	var i Entry
-	err := row.Scan(&i.ID, &i.CreatedAt, &i.UserID)
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UserID,
+		&i.Status,
+		&i.Operation,
+	)
 	return i, err
 }
 
+const getEntriesByStatus = `-- name: GetEntriesByStatus :many
+SELECT id, created_at, user_id, status, operation FROM entries 
+WHERE status=$1
+LIMIT $2
+`
+
+type GetEntriesByStatusParams struct {
+	Status string `json:"status"`
+	Limit  int32  `json:"limit"`
+}
+
+func (q *Queries) GetEntriesByStatus(ctx context.Context, arg GetEntriesByStatusParams) ([]Entry, error) {
+	rows, err := q.db.Query(ctx, getEntriesByStatus, arg.Status, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Entry{}
+	for rows.Next() {
+		var i Entry
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UserID,
+			&i.Status,
+			&i.Operation,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getEntriesByUser = `-- name: GetEntriesByUser :many
-SELECT id, created_at, user_id FROM entries
+SELECT id, created_at, user_id, status, operation FROM entries
 WHERE user_id = $1
 `
 
@@ -41,7 +84,13 @@ func (q *Queries) GetEntriesByUser(ctx context.Context, userID pgtype.UUID) ([]E
 	items := []Entry{}
 	for rows.Next() {
 		var i Entry
-		if err := rows.Scan(&i.ID, &i.CreatedAt, &i.UserID); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UserID,
+			&i.Status,
+			&i.Operation,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -53,19 +102,25 @@ func (q *Queries) GetEntriesByUser(ctx context.Context, userID pgtype.UUID) ([]E
 }
 
 const getEntry = `-- name: GetEntry :one
-SELECT id, created_at, user_id FROM entries
+SELECT id, created_at, user_id, status, operation FROM entries
 WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetEntry(ctx context.Context, id uuid.UUID) (Entry, error) {
 	row := q.db.QueryRow(ctx, getEntry, id)
 	var i Entry
-	err := row.Scan(&i.ID, &i.CreatedAt, &i.UserID)
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UserID,
+		&i.Status,
+		&i.Operation,
+	)
 	return i, err
 }
 
 const listEntries = `-- name: ListEntries :many
-SELECT id, created_at, user_id FROM entries
+SELECT id, created_at, user_id, status, operation FROM entries
 WHERE user_id = $1
 LIMIT $2
 OFFSET $3
@@ -86,7 +141,13 @@ func (q *Queries) ListEntries(ctx context.Context, arg ListEntriesParams) ([]Ent
 	items := []Entry{}
 	for rows.Next() {
 		var i Entry
-		if err := rows.Scan(&i.ID, &i.CreatedAt, &i.UserID); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UserID,
+			&i.Status,
+			&i.Operation,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -95,4 +156,29 @@ func (q *Queries) ListEntries(ctx context.Context, arg ListEntriesParams) ([]Ent
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateStatus = `-- name: UpdateStatus :one
+UPDATE entries
+SET status = $1
+WHERE id = $2
+RETURNING id, created_at, user_id, status, operation
+`
+
+type UpdateStatusParams struct {
+	Status string    `json:"status"`
+	ID     uuid.UUID `json:"id"`
+}
+
+func (q *Queries) UpdateStatus(ctx context.Context, arg UpdateStatusParams) (Entry, error) {
+	row := q.db.QueryRow(ctx, updateStatus, arg.Status, arg.ID)
+	var i Entry
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UserID,
+		&i.Status,
+		&i.Operation,
+	)
+	return i, err
 }

@@ -6,22 +6,33 @@ INSERT INTO documents (
   $1, $2
 ) RETURNING *;
 
+-- name: UpdatePageCount :one
+UPDATE documents
+SET page_count = $1
+WHERE id = $2
+RETURNING *;
+
 -- name: GetDocument :one
 SELECT * FROM documents
 WHERE id = $1 LIMIT 1;
 
--- name: GetDocumentByFilename :many
+-- name: GetDocumentsByEntryId :many
+SELECT * FROM documents
+WHERE entry_id = $1 
+LIMIT $2;
+
+-- name: GetDocumentsByFilename :many
 SELECT * FROM documents
 WHERE filename = $1 ;
 
--- name: GetDocumentById :many
+-- name: GetDocumentsByUserId :many
 SELECT filename,entry_id,entries.id,entries.user_id
 FROM documents
 LEFT JOIN entries 
 ON documents.entry_id = entries.id
 WHERE user_id = $1;
 
--- name: GetDocumentByUsername :many
+-- name: GetDocumentsByUsername :many
 SELECT filename,entry_id,entries.id,entries.user_id,users.id,users.username
 FROM documents
 LEFT JOIN entries 

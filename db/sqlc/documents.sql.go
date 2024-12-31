@@ -18,7 +18,7 @@ INSERT INTO documents (
   filename
 ) VALUES (
   $1, $2
-) RETURNING id, entry_id, filename
+) RETURNING id, entry_id, filename, page_count
 `
 
 type CreateDocumentParams struct {
@@ -29,29 +29,45 @@ type CreateDocumentParams struct {
 func (q *Queries) CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error) {
 	row := q.db.QueryRow(ctx, createDocument, arg.EntryID, arg.Filename)
 	var i Document
-	err := row.Scan(&i.ID, &i.EntryID, &i.Filename)
+	err := row.Scan(
+		&i.ID,
+		&i.EntryID,
+		&i.Filename,
+		&i.PageCount,
+	)
 	return i, err
 }
 
 const getDocument = `-- name: GetDocument :one
-SELECT id, entry_id, filename FROM documents
+SELECT id, entry_id, filename, page_count FROM documents
 WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetDocument(ctx context.Context, id uuid.UUID) (Document, error) {
 	row := q.db.QueryRow(ctx, getDocument, id)
 	var i Document
-	err := row.Scan(&i.ID, &i.EntryID, &i.Filename)
+	err := row.Scan(
+		&i.ID,
+		&i.EntryID,
+		&i.Filename,
+		&i.PageCount,
+	)
 	return i, err
 }
 
-const getDocumentByFilename = `-- name: GetDocumentByFilename :many
-SELECT id, entry_id, filename FROM documents
-WHERE filename = $1
+const getDocumentsByEntryId = `-- name: GetDocumentsByEntryId :many
+SELECT id, entry_id, filename, page_count FROM documents
+WHERE entry_id = $1 
+LIMIT $2
 `
 
-func (q *Queries) GetDocumentByFilename(ctx context.Context, filename string) ([]Document, error) {
-	rows, err := q.db.Query(ctx, getDocumentByFilename, filename)
+type GetDocumentsByEntryIdParams struct {
+	EntryID uuid.UUID `json:"entry_id"`
+	Limit   int32     `json:"limit"`
+}
+
+func (q *Queries) GetDocumentsByEntryId(ctx context.Context, arg GetDocumentsByEntryIdParams) ([]Document, error) {
+	rows, err := q.db.Query(ctx, getDocumentsByEntryId, arg.EntryID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +75,12 @@ func (q *Queries) GetDocumentByFilename(ctx context.Context, filename string) ([
 	items := []Document{}
 	for rows.Next() {
 		var i Document
-		if err := rows.Scan(&i.ID, &i.EntryID, &i.Filename); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.EntryID,
+			&i.Filename,
+			&i.PageCount,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -70,7 +91,37 @@ func (q *Queries) GetDocumentByFilename(ctx context.Context, filename string) ([
 	return items, nil
 }
 
-const getDocumentById = `-- name: GetDocumentById :many
+const getDocumentsByFilename = `-- name: GetDocumentsByFilename :many
+SELECT id, entry_id, filename, page_count FROM documents
+WHERE filename = $1
+`
+
+func (q *Queries) GetDocumentsByFilename(ctx context.Context, filename string) ([]Document, error) {
+	rows, err := q.db.Query(ctx, getDocumentsByFilename, filename)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Document{}
+	for rows.Next() {
+		var i Document
+		if err := rows.Scan(
+			&i.ID,
+			&i.EntryID,
+			&i.Filename,
+			&i.PageCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getDocumentsByUserId = `-- name: GetDocumentsByUserId :many
 SELECT filename,entry_id,entries.id,entries.user_id
 FROM documents
 LEFT JOIN entries 
@@ -78,22 +129,22 @@ ON documents.entry_id = entries.id
 WHERE user_id = $1
 `
 
-type GetDocumentByIdRow struct {
+type GetDocumentsByUserIdRow struct {
 	Filename string      `json:"filename"`
 	EntryID  uuid.UUID   `json:"entry_id"`
 	ID       pgtype.UUID `json:"id"`
 	UserID   pgtype.UUID `json:"user_id"`
 }
 
-func (q *Queries) GetDocumentById(ctx context.Context, userID pgtype.UUID) ([]GetDocumentByIdRow, error) {
-	rows, err := q.db.Query(ctx, getDocumentById, userID)
+func (q *Queries) GetDocumentsByUserId(ctx context.Context, userID pgtype.UUID) ([]GetDocumentsByUserIdRow, error) {
+	rows, err := q.db.Query(ctx, getDocumentsByUserId, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GetDocumentByIdRow{}
+	items := []GetDocumentsByUserIdRow{}
 	for rows.Next() {
-		var i GetDocumentByIdRow
+		var i GetDocumentsByUserIdRow
 		if err := rows.Scan(
 			&i.Filename,
 			&i.EntryID,
@@ -110,7 +161,7 @@ func (q *Queries) GetDocumentById(ctx context.Context, userID pgtype.UUID) ([]Ge
 	return items, nil
 }
 
-const getDocumentByUsername = `-- name: GetDocumentByUsername :many
+const getDocumentsByUsername = `-- name: GetDocumentsByUsername :many
 SELECT filename,entry_id,entries.id,entries.user_id,users.id,users.username
 FROM documents
 LEFT JOIN entries 
@@ -120,7 +171,7 @@ ON entries.user_id = users.id
 WHERE username = $1
 `
 
-type GetDocumentByUsernameRow struct {
+type GetDocumentsByUsernameRow struct {
 	Filename string      `json:"filename"`
 	EntryID  uuid.UUID   `json:"entry_id"`
 	ID       pgtype.UUID `json:"id"`
@@ -129,15 +180,15 @@ type GetDocumentByUsernameRow struct {
 	Username pgtype.Text `json:"username"`
 }
 
-func (q *Queries) GetDocumentByUsername(ctx context.Context, username string) ([]GetDocumentByUsernameRow, error) {
-	rows, err := q.db.Query(ctx, getDocumentByUsername, username)
+func (q *Queries) GetDocumentsByUsername(ctx context.Context, username string) ([]GetDocumentsByUsernameRow, error) {
+	rows, err := q.db.Query(ctx, getDocumentsByUsername, username)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GetDocumentByUsernameRow{}
+	items := []GetDocumentsByUsernameRow{}
 	for rows.Next() {
-		var i GetDocumentByUsernameRow
+		var i GetDocumentsByUsernameRow
 		if err := rows.Scan(
 			&i.Filename,
 			&i.EntryID,
@@ -157,7 +208,7 @@ func (q *Queries) GetDocumentByUsername(ctx context.Context, username string) ([
 }
 
 const listDocuments = `-- name: ListDocuments :many
-SELECT id, entry_id, filename FROM documents
+SELECT id, entry_id, filename, page_count FROM documents
 LIMIT $1
 OFFSET $2
 `
@@ -176,7 +227,12 @@ func (q *Queries) ListDocuments(ctx context.Context, arg ListDocumentsParams) ([
 	items := []Document{}
 	for rows.Next() {
 		var i Document
-		if err := rows.Scan(&i.ID, &i.EntryID, &i.Filename); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.EntryID,
+			&i.Filename,
+			&i.PageCount,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -185,4 +241,28 @@ func (q *Queries) ListDocuments(ctx context.Context, arg ListDocumentsParams) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const updatePageCount = `-- name: UpdatePageCount :one
+UPDATE documents
+SET page_count = $1
+WHERE id = $2
+RETURNING id, entry_id, filename, page_count
+`
+
+type UpdatePageCountParams struct {
+	PageCount int32     `json:"page_count"`
+	ID        uuid.UUID `json:"id"`
+}
+
+func (q *Queries) UpdatePageCount(ctx context.Context, arg UpdatePageCountParams) (Document, error) {
+	row := q.db.QueryRow(ctx, updatePageCount, arg.PageCount, arg.ID)
+	var i Document
+	err := row.Scan(
+		&i.ID,
+		&i.EntryID,
+		&i.Filename,
+		&i.PageCount,
+	)
+	return i, err
 }

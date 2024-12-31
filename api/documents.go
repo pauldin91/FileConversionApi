@@ -14,7 +14,8 @@ import (
 
 func (server *Server) convert(c *gin.Context) {
 	operation := c.PostForm("operation")
-	if strings.ToLower(operation) != "conversion" && strings.ToLower(operation) != "merge" {
+	if strings.ToLower(operation) != "conversion" &&
+		strings.ToLower(operation) != "merge" {
 		c.JSON(http.StatusBadRequest, errors.New("invalid operation for documents"))
 		return
 	}

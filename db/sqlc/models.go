@@ -12,15 +12,18 @@ import (
 )
 
 type Document struct {
-	ID       uuid.UUID `json:"id"`
-	EntryID  uuid.UUID `json:"entry_id"`
-	Filename string    `json:"filename"`
+	ID        uuid.UUID `json:"id"`
+	EntryID   uuid.UUID `json:"entry_id"`
+	Filename  string    `json:"filename"`
+	PageCount int32     `json:"page_count"`
 }
 
 type Entry struct {
 	ID        uuid.UUID   `json:"id"`
 	CreatedAt time.Time   `json:"created_at"`
 	UserID    pgtype.UUID `json:"user_id"`
+	Status    string      `json:"status"`
+	Operation string      `json:"operation"`
 }
 
 type User struct {

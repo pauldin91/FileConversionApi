@@ -49,7 +49,7 @@ func (server *Server) setupRouter() {
 	authRoutes.GET(usersRoute, server.listUsers)
 	authRoutes.GET(usersRoute+"/:email", server.getUser)
 
-	authRoutes.POST("/documents", server.convert)
+	authRoutes.POST(documents, server.convert)
 	server.router = router
 
 }
