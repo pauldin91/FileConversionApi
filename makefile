@@ -26,10 +26,10 @@ new:
 	migrate create -ext sql -dir db/migrations -seq $(name)
 
 docs:
-	dbdocs build doc/db.dbml
+	dbdocs build docs/db.dbml
 
 schema:
-	dbml2sql --postgres -o doc/schema.sql doc/db.dbml
+	dbml2sql --postgres -o docs/schema.sql docs/db.dbml
 
 mock:
 	mockgen -package mockdb -destination db/mock/store.go $(PROJECT_NAME)/db/sqlc Store
@@ -39,13 +39,13 @@ gen:
 	sqlc generate
 
 proto:
-	rm -f pb/*.go
-	rm -f doc/swagger/*.swagger.json
-	protoc --proto_path=proto --go_out=pb --go_opt=paths=source_relative --go-grpc_out=pb --go-grpc_opt=paths=source_relative \
-	--grpc-gateway_out=pb --grpc-gateway_opt=paths=source_relative \
-	--openapiv2_out=doc/swagger --openapiv2_opt=allow_merge=true,merge_file_name=FileConversionApi \
-	proto/*.proto
-	statik -src=./doc/swagger -dest=./doc
+	#rm -f pb/*.go
+	rm -f docs/swagger/*.swagger.json
+	#protoc --proto_path=proto --go_out=pb --go_opt=paths=source_relative --go-grpc_out=pb --go-grpc_opt=paths=source_relative \
+	#--grpc-gateway_out=pb --grpc-gateway_opt=paths=source_relative \
+	#--openapiv2_out=doc/swagger --openapiv2_opt=allow_merge=true,merge_file_name=FileConversionApi \
+	#proto/*.proto
+	statik -src=./docs/swagger -dest=./docs
 
 test:
 	go test -v -cover -short ./...

@@ -49,7 +49,7 @@ func (server *Server) login(ctx *gin.Context) {
 		return
 	}
 
-	token, err := server.tokenGenerator.Generate(user.Username)
+	token, err := server.tokenGenerator.Generate(user.Username, user.Role.String)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, errors.New("something gone wrong"))
 		return

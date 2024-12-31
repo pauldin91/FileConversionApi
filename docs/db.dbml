@@ -1,0 +1,46 @@
+Project conversion_api {
+  database_type: 'PostgreSQL'
+  Note: '''
+    # Conversion Api
+  '''
+}
+
+Table users as U {
+  username varchar [not null]
+  id uuid [pk]
+  role varchar [not null, default: 'converter']
+  hashed_password varchar [not null]
+  full_name varchar [not null]
+  email varchar [unique, not null]
+  is_email_verified bool [not null, default: false]
+  password_changed_at timestamptz [not null, default: '0001-01-01']
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    id [unique]
+    username [unique]
+    full_name [unique]
+  }
+}
+
+
+Table entries as E {
+  id uuid [pk]
+  user_id uuid [ref: > U.id, not null]
+  created_at timestamptz [not null, default: `now()`]
+  Indexes {
+    id [unique]
+  }
+
+}
+
+
+Table documents {
+  id uuid [pk]
+  entry_id uuid [ref: > E.id, not null]
+  filename varchar [not null]
+  
+  Indexes {
+    id [unique]
+  }
+}

@@ -38,7 +38,14 @@ func main() {
 
 	// Start the HTTPS server
 	gen := utils.NewJwtGenerator(config.SigningKey)
-	server := api.NewServer(config, gen, store)
+
+	//statikFS, err := fs.New()
+	//if err != nil {
+	//	log.Fatal().Err(err).Msg("cannot create statik fs")
+	//}
+
+	server := api.NewServer(config, gen, store) //, statikFS)
+
 	err = server.Start()
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to start server")

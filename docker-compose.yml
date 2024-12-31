@@ -12,6 +12,7 @@ services:
       - postgres-data:/var/lib/postgresql/data  # Use a named volume to persist data
     networks:
       - conv.api  # Attach to the backend network
+    restart: always
 
 
       
@@ -21,13 +22,13 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8080:8080"  # Expose backend service on port 8080
+      - "8080:8080"  
     networks:
-      - conv.api  # Attach to the backend network
+      - conv.api 
     environment:
       - CONNECTION_STRING=postgresql://postgres:postgres@postgres:5432/postgres?sslmode=disable  # Connect to PostgreSQL on the internal Docker network
     depends_on:
-      - postgres  # Ensure backend starts after postgres
+      - postgres  
 
 networks:
   conv.api:

@@ -29,7 +29,7 @@ func (server *Server) authorize() gin.HandlerFunc {
 		if err != nil {
 			ctx.AbortWithStatusJSON(http.StatusInternalServerError, "server error")
 			return
-		} else if !valid {
+		} else if valid == nil {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, "invalid")
 			return
 		}

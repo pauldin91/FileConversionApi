@@ -38,6 +38,9 @@ func (server *Server) setupRouter() {
 
 	router := gin.Default()
 
+	//swaggerHandler := http.StripPrefix("/swagger/", http.FileServer(server.statikFS))
+	//router.GET("/swagger/*filepath", gin.WrapH(swaggerHandler))
+
 	router.POST(usersRoute, server.createUser)
 	router.POST("/auth", server.login)
 
@@ -46,6 +49,7 @@ func (server *Server) setupRouter() {
 	authRoutes.GET(usersRoute, server.listUsers)
 	authRoutes.GET(usersRoute+"/:email", server.getUser)
 
+	authRoutes.POST("/documents", server.convert)
 	server.router = router
 
 }
