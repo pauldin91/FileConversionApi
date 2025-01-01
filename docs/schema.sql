@@ -1,6 +1,6 @@
 -- SQL dump generated using DBML (dbml.dbdiagram.io)
 -- Database: PostgreSQL
--- Generated at: 2024-12-31T20:52:29.894Z
+-- Generated at: 2025-01-01T13:09:29.647Z
 
 CREATE TABLE "users" (
   "username" varchar NOT NULL,

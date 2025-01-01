@@ -12,7 +12,7 @@ const (
 )
 
 type Generator interface {
-	Generate(username, role string) (string, error)
+	Generate(userId string, username, role string) (string, error)
 	Validate(providedToken string) (*CustomClaims, error)
 }
 
@@ -23,14 +23,16 @@ type JwtGenerator struct {
 type CustomClaims struct {
 	Username string `json:"username"`
 	Role     string `json:"role"`
+	UserId   string `json:"user_id"`
 	jwt.RegisteredClaims
 }
 
-func NewClaims(username string, role string) *CustomClaims {
+func NewClaims(userId string, username string, role string) *CustomClaims {
 
 	payload := &CustomClaims{
 		Username: username,
 		Role:     role,
+		UserId:   userId,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -47,8 +49,8 @@ func NewJwtGenerator(key string) Generator {
 	}
 }
 
-func (gen *JwtGenerator) Generate(username string, role string) (string, error) {
-	payload := NewClaims(username, role)
+func (gen *JwtGenerator) Generate(userId string, username string, role string) (string, error) {
+	payload := NewClaims(userId, username, role)
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, payload)
 

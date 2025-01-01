@@ -1,8 +1,9 @@
 -- name: CreateEntry :one
 INSERT INTO entries (
-  user_id
+  user_id,
+  operation
 ) VALUES (
-  $1
+  $1, $2
 ) RETURNING *;
 
 -- name: UpdateStatus :one

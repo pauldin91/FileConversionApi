@@ -14,14 +14,20 @@ import (
 
 const createEntry = `-- name: CreateEntry :one
 INSERT INTO entries (
-  user_id
+  user_id,
+  operation
 ) VALUES (
-  $1
+  $1, $2
 ) RETURNING id, created_at, user_id, status, operation
 `
 
-func (q *Queries) CreateEntry(ctx context.Context, userID pgtype.UUID) (Entry, error) {
-	row := q.db.QueryRow(ctx, createEntry, userID)
+type CreateEntryParams struct {
+	UserID    pgtype.UUID `json:"user_id"`
+	Operation string      `json:"operation"`
+}
+
+func (q *Queries) CreateEntry(ctx context.Context, arg CreateEntryParams) (Entry, error) {
+	row := q.db.QueryRow(ctx, createEntry, arg.UserID, arg.Operation)
 	var i Entry
 	err := row.Scan(
 		&i.ID,

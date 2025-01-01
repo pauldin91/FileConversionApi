@@ -53,6 +53,7 @@ func (server *Server) setupRouter() {
 	authRoutes.GET(usersRoute+"/:email", server.getUser)
 
 	authRoutes.POST(documents, server.convert)
+	authRoutes.GET(documents+"/:id", server.retrieve)
 	server.router = router
 
 }

@@ -13,7 +13,7 @@ import (
 
 type Querier interface {
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
-	CreateEntry(ctx context.Context, userID pgtype.UUID) (Entry, error)
+	CreateEntry(ctx context.Context, arg CreateEntryParams) (Entry, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	GetDocument(ctx context.Context, id uuid.UUID) (Document, error)
 	GetDocumentsByEntryId(ctx context.Context, arg GetDocumentsByEntryIdParams) ([]Document, error)

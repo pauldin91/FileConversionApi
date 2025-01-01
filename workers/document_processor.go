@@ -3,8 +3,6 @@ package workers
 import (
 	"context"
 	"log"
-	"os"
-	"path"
 	"sync"
 
 	db "github.com/FileConversionApi/db/sqlc"
@@ -16,13 +14,15 @@ type DocumentProcessor struct {
 	ctx       context.Context
 	store     db.Store
 	converter utils.Converter
+	storage   utils.Storage
 }
 
-func NewDocumentProcessor(store db.Store, ctx context.Context, converter utils.Converter) *DocumentProcessor {
+func NewDocumentProcessor(store db.Store, ctx context.Context, converter utils.Converter, storage utils.Storage) *DocumentProcessor {
 	return &DocumentProcessor{
 		store:     store,
 		ctx:       ctx,
 		converter: converter,
+		storage:   storage,
 	}
 }
 
@@ -76,24 +76,21 @@ func (dp *DocumentProcessor) processEntry(entry db.Entry, done chan bool) {
 		log.Printf("error reading entry with id %s ", entry.ID)
 	}
 
-	files := make(map[string][]byte)
-	for i := range documents {
-		index := documents[i].Filename
-		fullName := path.Join(entry.ID.String(), documents[i].Filename)
-		contents, err := os.ReadFile(fullName)
-		if err != nil {
-			continue
-		}
-		files[index] = contents
+	files, err := dp.storage.GetFiles(entry.ID.String())
+	var status string
+
+	if err != nil {
+		done <- false
+		status = "failed"
+		return
 	}
 	doneChan := make(chan bool)
 
 	if entry.Operation == "merge" {
-		go dp.converter.Merge(files, entry.ID, doneChan)
+		go dp.converter.Merge(files, entry.ID.String(), doneChan)
 	} else {
-		go dp.converter.Convert(files, entry.ID, doneChan)
+		go dp.converter.Convert(files, entry.ID.String(), doneChan)
 	}
-	var status string
 	if ok := <-doneChan; !ok {
 		done <- ok
 		status = "failed"
@@ -106,7 +103,8 @@ func (dp *DocumentProcessor) processEntry(entry db.Entry, done chan bool) {
 		wg.Add(1)
 		go func(documents []db.Document, i int) {
 			defer wg.Done()
-			pages, _ := dp.converter.GetPageCount(documents[i].Filename, entry.ID)
+			filename, err := dp.storage.TransformName(entry.ID.String(), documents[i].Filename)
+			pages, _ := dp.converter.GetPageCount(filename)
 			if err != nil {
 				pages = 0
 			}
