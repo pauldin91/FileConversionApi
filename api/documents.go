@@ -1,10 +1,11 @@
 package api
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -33,14 +34,14 @@ func (server *Server) convert(c *gin.Context) {
 		return
 	}
 
-	user, err := server.store.GetUserByUsername(context.Background(), claims.Username)
+	user, err := server.store.GetUserByUsername(server.ctx, claims.Username)
 
 	if err != nil {
 		c.JSON(http.StatusNotFound, err.Error())
 		return
 	}
 
-	entry, err := server.store.CreateEntry(context.Background(), user.ID)
+	entry, err := server.store.CreateEntry(server.ctx, user.ID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, err.Error())
 		return
@@ -50,7 +51,7 @@ func (server *Server) convert(c *gin.Context) {
 	filenames := make([]string, len(files))
 	for _, file := range files {
 		filename := filepath.Base(file.Filename)
-		_, err := server.store.CreateDocument(context.Background(), db.CreateDocumentParams{
+		_, err := server.store.CreateDocument(server.ctx, db.CreateDocumentParams{
 			EntryID:  entry.ID,
 			Filename: filename,
 		})
@@ -58,7 +59,14 @@ func (server *Server) convert(c *gin.Context) {
 			c.JSON(http.StatusNotFound, err.Error())
 			return
 		}
-		if err = c.SaveUploadedFile(file, filename); err != nil {
+		err = os.MkdirAll(entry.ID.String(), 0755)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, err.Error())
+			return
+		}
+
+		fullPath := path.Join(entry.ID.String(), filename)
+		if err = c.SaveUploadedFile(file, fullPath); err != nil {
 			c.JSON(http.StatusBadRequest, fmt.Sprintf("upload file err: %s", err.Error()))
 			return
 		}

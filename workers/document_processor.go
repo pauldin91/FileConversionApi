@@ -13,22 +13,31 @@ import (
 )
 
 type DocumentProcessor struct {
+	ctx       context.Context
 	store     db.Store
 	converter utils.Converter
 }
 
-func (dp *DocumentProcessor) Work(ctx context.Context, errChan chan error) {
+func NewDocumentProcessor(store db.Store, ctx context.Context, converter utils.Converter) *DocumentProcessor {
+	return &DocumentProcessor{
+		store:     store,
+		ctx:       ctx,
+		converter: converter,
+	}
+}
+
+func (dp *DocumentProcessor) Work(errChan chan error) {
 	for {
 		// Check for shutdown signal
 		select {
-		case <-ctx.Done():
+		case <-dp.ctx.Done():
 			// Graceful shutdown
 			return
 		default:
 		}
 
 		// Fetch entries to process
-		entries, err := dp.store.GetEntriesByStatus(context.Background(), db.GetEntriesByStatusParams{
+		entries, err := dp.store.GetEntriesByStatus(dp.ctx, db.GetEntriesByStatusParams{
 			Status: "processing",
 			Limit:  10,
 		})
@@ -58,8 +67,9 @@ func (dp *DocumentProcessor) Work(ctx context.Context, errChan chan error) {
 
 func (dp *DocumentProcessor) processEntry(entry db.Entry, done chan bool) {
 
-	documents, err := dp.store.GetDocumentsByEntryId(context.Background(), db.GetDocumentsByEntryIdParams{
+	documents, err := dp.store.GetDocumentsByEntryId(dp.ctx, db.GetDocumentsByEntryIdParams{
 		EntryID: entry.ID,
+		Limit:   10,
 	})
 
 	if err != nil {
@@ -100,7 +110,7 @@ func (dp *DocumentProcessor) processEntry(entry db.Entry, done chan bool) {
 			if err != nil {
 				pages = 0
 			}
-			dp.store.UpdatePageCount(context.Background(), db.UpdatePageCountParams{
+			dp.store.UpdatePageCount(dp.ctx, db.UpdatePageCountParams{
 				PageCount: pages,
 				ID:        documents[i].ID,
 			})
@@ -108,7 +118,7 @@ func (dp *DocumentProcessor) processEntry(entry db.Entry, done chan bool) {
 	}
 	wg.Wait()
 
-	dp.store.UpdateStatus(context.Background(), db.UpdateStatusParams{
+	dp.store.UpdateStatus(dp.ctx, db.UpdateStatusParams{
 		Status: status,
 		ID:     entry.ID,
 	})

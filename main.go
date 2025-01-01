@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -14,10 +17,10 @@ import (
 	"github.com/FileConversionApi/api"
 	db "github.com/FileConversionApi/db/sqlc"
 	"github.com/FileConversionApi/utils"
+	"github.com/FileConversionApi/workers"
 )
 
 func main() {
-
 	config, err := utils.LoadConfig(".")
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot load config")
@@ -27,7 +30,10 @@ func main() {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	}
 
-	connPool, err := pgxpool.New(context.Background(), config.ConnectionString)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	connPool, err := pgxpool.New(ctx, config.ConnectionString)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot connect to db")
 	}
@@ -36,20 +42,45 @@ func main() {
 
 	store := db.NewStore(connPool)
 
+	errChan := make(chan error, 1)
+
+	// Launch the background processor
+	go launchProcessor(store, ctx, errChan)
+
+	// Set up signal handling for graceful shutdown
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+
+	// Create a wait group to ensure all goroutines finish before exiting
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		select {
+		case sig := <-signalChan:
+			log.Info().Msgf("Received signal: %s. Shutting down...", sig)
+			cancel()
+		case err := <-errChan:
+			log.Error().Err(err).Msg("Worker encountered an error. Shutting down...")
+			cancel()
+		}
+	}()
+
 	// Start the HTTPS server
 	gen := utils.NewJwtGenerator(config.SigningKey)
+	server := api.NewServer(config, gen, store, ctx)
 
-	//statikFS, err := fs.New()
-	//if err != nil {
-	//	log.Fatal().Err(err).Msg("cannot create statik fs")
-	//}
+	go func() {
+		if err := server.Start(); err != nil {
+			log.Fatal().Err(err).Msg("Failed to start server")
+		}
+		cancel() // Ensure the application shuts down if the server fails
+	}()
 
-	server := api.NewServer(config, gen, store) //, statikFS)
-
-	err = server.Start()
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to start server")
-	}
+	// Wait for all goroutines to finish
+	wg.Wait()
+	log.Info().Msg("Application shut down gracefully.")
 }
 
 func runDBMigration(migrationURL string, dbSource string) {
@@ -63,4 +94,9 @@ func runDBMigration(migrationURL string, dbSource string) {
 	}
 
 	log.Info().Msg("db migrated successfully")
+}
+
+func launchProcessor(store db.Store, ctx context.Context, errChan chan error) {
+	processor := workers.NewDocumentProcessor(store, ctx, utils.PdfConverter{})
+	processor.Work(errChan)
 }

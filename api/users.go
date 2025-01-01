@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"net/http"
 	"time"
 
@@ -48,7 +47,7 @@ func (server *Server) createUser(ctx *gin.Context) {
 		FullName:       req.FullName,
 		Email:          req.Email,
 	}
-	user, err := server.store.CreateUser(context.Background(), arg)
+	user, err := server.store.CreateUser(server.ctx, arg)
 
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, err)
@@ -80,7 +79,7 @@ func (server *Server) listUsers(ctx *gin.Context) {
 		Offset: (req.PageID - 1) * req.PageSize,
 	}
 
-	users, err := server.store.GetUsers(context.Background(), arg)
+	users, err := server.store.GetUsers(server.ctx, arg)
 	if err != nil {
 		ctx.JSON(http.StatusNotFound, err)
 		return
@@ -95,7 +94,7 @@ func (server *Server) getUser(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, err)
 		return
 	}
-	user, err := server.store.GetUserByEmail(context.Background(), req.Email)
+	user, err := server.store.GetUserByEmail(server.ctx, req.Email)
 	if err != nil {
 		ctx.JSON(http.StatusNotFound, err)
 		return

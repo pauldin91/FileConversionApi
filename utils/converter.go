@@ -25,21 +25,21 @@ type ConversionModel struct {
 
 type PdfConverter struct{}
 
-func (conv *PdfConverter) GetPageCount(name string, entryId uuid.UUID) (int, error) {
+func (conv PdfConverter) GetPageCount(name string, entryId uuid.UUID) (int32, error) {
 	fullName := path.Join(entryId.String(), name)
 	pageCount, err := api.PageCountFile(fullName)
 	if err != nil {
 		return 0, err
 	}
-	return pageCount, nil
+	return int32(pageCount), nil
 }
 
-func (conv *PdfConverter) Merge(files map[string][]byte, entryId uuid.UUID, done chan bool) {
+func (conv PdfConverter) Merge(files map[string][]byte, entryId uuid.UUID, done chan bool) {
 	// Step 1: Write each []byte to a temporary file
 	var tempFiles []string
 	for name, content := range files {
 		tempFileName := path.Join(entryId.String(), name)
-		err := os.WriteFile(tempFileName, content, 0644)
+		err := os.WriteFile(tempFileName, content, 0755)
 		if err != nil {
 			done <- false // Send error back via channel
 			return
@@ -58,7 +58,7 @@ func (conv *PdfConverter) Merge(files map[string][]byte, entryId uuid.UUID, done
 	done <- true // No error, successful
 }
 
-func (conv *PdfConverter) Convert(files map[string][]byte, entryId uuid.UUID, done chan bool) {
+func (conv PdfConverter) Convert(files map[string][]byte, entryId uuid.UUID, done chan bool) {
 	var wg sync.WaitGroup
 	errs := make(chan error, len(files))
 
@@ -88,7 +88,7 @@ func (conv *PdfConverter) Convert(files map[string][]byte, entryId uuid.UUID, do
 	done <- true // No error, successful
 }
 
-func (conv *PdfConverter) convert(contents []byte, name string, entryId uuid.UUID, done chan error) {
+func (conv PdfConverter) convert(contents []byte, name string, entryId uuid.UUID, done chan error) {
 	// Create a directory for the entryId if it doesn't exist
 	err := os.MkdirAll(entryId.String(), 0755) // Use MkdirAll to ensure the path exists
 	if err != nil {
