@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path"
@@ -8,19 +9,6 @@ import (
 
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 )
-
-type Converter interface {
-	convert(contents []byte, name string, outputDir string, done chan error)
-	Convert(filenames []string, outputDir string, done chan bool)
-	Merge(filenames []string, outputFile string, done chan bool)
-	GetPageCount(fullName string) (int32, error)
-}
-
-type ConversionModel struct {
-	Name      string
-	Content   []byte
-	PageCount int
-}
 
 type PdfConverter struct {
 }
@@ -47,7 +35,6 @@ func (conv PdfConverter) Merge(filenames []string, outputFile string, done chan 
 func (conv PdfConverter) Convert(filenames []string, outputDir string, done chan bool) {
 
 	var wg sync.WaitGroup
-	outputDir = path.Join(outputDir, convertedDir)
 	errs := make(chan error, len(filenames))
 
 	for i := range filenames {
@@ -74,12 +61,16 @@ func (conv PdfConverter) Convert(filenames []string, outputDir string, done chan
 
 func (conv PdfConverter) convert(name string, outputDir string, done chan error) {
 
-	cmd := exec.Command("libreoffice", "--headless", "--convert-to", "pdf", "--outdir", outputDir, name)
+	finalOutputDir := path.Join(rootDir, outputDir, convertedDir)
+	filename := path.Join(rootDir, outputDir, name)
+
+	cmd := exec.Command("libreoffice", "--headless", "--convert-to", "pdf", "--outdir", finalOutputDir, filename)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	err := cmd.Run()
 	if err != nil {
+		fmt.Println(err.Error())
 		done <- err
 		return
 	}

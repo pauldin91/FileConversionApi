@@ -7,14 +7,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-const (
-	issuer string = "conversion_api"
-)
 
-type Generator interface {
-	Generate(userId string, username, role string) (string, error)
-	Validate(providedToken string) (*CustomClaims, error)
-}
 
 type JwtGenerator struct {
 	signingKey string

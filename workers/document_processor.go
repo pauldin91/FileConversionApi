@@ -3,7 +3,6 @@ package workers
 import (
 	"context"
 	"log"
-	"sync"
 
 	db "github.com/FileConversionApi/db/sqlc"
 	"github.com/FileConversionApi/utils"
@@ -77,11 +76,9 @@ func (dp *DocumentProcessor) processEntry(entry db.Entry, done chan bool) {
 	}
 
 	files, err := dp.storage.GetFiles(entry.ID.String())
-	var status string
 
 	if err != nil {
 		done <- false
-		status = "failed"
 		return
 	}
 	doneChan := make(chan bool)
@@ -91,34 +88,31 @@ func (dp *DocumentProcessor) processEntry(entry db.Entry, done chan bool) {
 	} else {
 		go dp.converter.Convert(files, entry.ID.String(), doneChan)
 	}
-	if ok := <-doneChan; !ok {
-		done <- ok
-		status = "failed"
+	ok := <-doneChan
+
+	if !ok {
+		dp.updateOnCompletion(entry, "failed")
 	} else {
-		done <- true
-		status = "success"
-	}
-	var wg sync.WaitGroup
-	for i := range documents {
-		wg.Add(1)
-		go func(documents []db.Document, i int) {
-			defer wg.Done()
-			filename, err := dp.storage.TransformName(entry.ID.String(), documents[i].Filename)
+
+		for i := range documents {
+
+			filename, _ := dp.storage.TransformName(entry.ID.String(), documents[i].Filename)
 			pages, _ := dp.converter.GetPageCount(filename)
-			if err != nil {
-				pages = 0
-			}
 			dp.store.UpdatePageCount(dp.ctx, db.UpdatePageCountParams{
 				PageCount: pages,
 				ID:        documents[i].ID,
 			})
-		}(documents, i)
-	}
-	wg.Wait()
 
+		}
+		dp.updateOnCompletion(entry, "success")
+
+	}
+	done <- ok
+}
+
+func (dp *DocumentProcessor) updateOnCompletion(entry db.Entry, status string) {
 	dp.store.UpdateStatus(dp.ctx, db.UpdateStatusParams{
 		Status: status,
 		ID:     entry.ID,
 	})
-	done <- true
 }

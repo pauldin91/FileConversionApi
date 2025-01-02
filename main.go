@@ -97,6 +97,6 @@ func runDBMigration(migrationURL string, dbSource string) {
 }
 
 func launchProcessor(store db.Store, ctx context.Context, errChan chan error) {
-	processor := workers.NewDocumentProcessor(store, ctx, utils.PdfConverter{})
+	processor := workers.NewDocumentProcessor(store, ctx, utils.PdfConverter{}, utils.LocalStorage{})
 	processor.Work(errChan)
 }

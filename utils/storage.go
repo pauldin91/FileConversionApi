@@ -8,24 +8,12 @@ import (
 	"strings"
 )
 
-const (
-	rootDir      string = "storage"
-	convertedDir string = "converted"
-	uuidRegex    string = "[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}"
-)
-
-type Storage interface {
-	Retrieve(dirname string) (string, error)
-	GetFilename(dirname, filename string) string
-	TransformName(dirname, filename string) (string, error)
-	GetFiles(dirname string) ([]string, error)
-}
-
 type LocalStorage struct {
 }
 
 func (st LocalStorage) GetFiles(dirname string) ([]string, error) {
-	contents, err := os.ReadDir(dirname)
+	fullPath := path.Join(rootDir, dirname)
+	contents, err := os.ReadDir(fullPath)
 	if err != nil {
 		return nil, errors.New("directory does not exist")
 	}
@@ -40,11 +28,11 @@ func (st LocalStorage) GetFiles(dirname string) ([]string, error) {
 }
 
 func (st LocalStorage) TransformName(dirname, filename string) (string, error) {
-	contents, err := os.ReadDir(dirname)
+	fullPath := dirname
+	contents, err := os.ReadDir(path.Join(rootDir, fullPath))
 	if err != nil {
 		return "", err
 	}
-	fullPath := path.Join(rootDir, dirname)
 
 	for i := range contents {
 		if contents[i].IsDir() && contents[i].Name() == convertedDir {
@@ -62,7 +50,7 @@ func (st LocalStorage) TransformName(dirname, filename string) (string, error) {
 	namePart := strings.Split(filename, ".")[0]
 	for i := range files {
 		if strings.Contains(filepath.Base(files[i]), namePart) {
-			return files[i], nil
+			return path.Join(rootDir, dirname, convertedDir, files[i]), nil
 		}
 	}
 
@@ -74,8 +62,10 @@ func (st LocalStorage) Retrieve(dirname string) (string, error) {
 	ext := ".pdf"
 	fullPathEntry := path.Join(rootDir, dirname)
 	if directoryExists(path.Join(fullPathEntry, convertedDir)) {
-		fullPathEntry = path.Join(fullPathEntry, convertedDir)
+		target := path.Join(fullPathEntry, convertedDir)
 		ext = ".zip"
+		output := path.Join(rootDir, dirname, dirname+ext)
+		ZipEntry(target, output)
 	}
 	fullPathFileName := path.Join(fullPathEntry, dirname+ext)
 	exists := fileExists(fullPathFileName)
