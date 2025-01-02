@@ -74,8 +74,6 @@ func (server *Server) convert(c *gin.Context) {
 
 }
 
-
-
 func (server *Server) retrieve(ctx *gin.Context) {
 	var req entryRequest
 
@@ -91,6 +89,13 @@ func (server *Server) retrieve(ctx *gin.Context) {
 			return
 		}
 		ctx.JSON(http.StatusBadRequest, err)
+		return
+	}
+	if entry.Status == "processing" {
+		ctx.JSON(http.StatusOK, fmt.Sprintf("process of entry with ID %s is being %s", entry.ID.String(), entry.Status))
+		return
+	} else if entry.Status == "failed" {
+		ctx.JSON(http.StatusOK, fmt.Sprintf("process of entry with ID %s failed", entry.ID.String()))
 		return
 	}
 

@@ -59,16 +59,23 @@ func (st LocalStorage) TransformName(dirname, filename string) (string, error) {
 }
 
 func (st LocalStorage) Retrieve(dirname string) (string, error) {
-	ext := ".pdf"
+
 	fullPathEntry := path.Join(rootDir, dirname)
-	if directoryExists(path.Join(fullPathEntry, convertedDir)) {
-		target := path.Join(fullPathEntry, convertedDir)
+	zipFile := path.Join(fullPathEntry, dirname+".zip")
+	convertedTarget := path.Join(fullPathEntry, convertedDir)
+	ext := ".pdf"
+
+	if fileExists(zipFile) {
+		return zipFile, nil
+	} else if directoryExists(convertedTarget) {
 		ext = ".zip"
-		output := path.Join(rootDir, dirname, dirname+ext)
-		ZipEntry(target, output)
+		zipDir(convertedTarget, zipFile)
+		defer os.RemoveAll(convertedTarget)
 	}
+
 	fullPathFileName := path.Join(fullPathEntry, dirname+ext)
 	exists := fileExists(fullPathFileName)
+
 	if !exists {
 		return "", errors.New("document does not exist")
 	}

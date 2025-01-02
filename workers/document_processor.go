@@ -51,10 +51,7 @@ func (dp *DocumentProcessor) Work(errChan chan error) {
 		complete := make([]chan bool, len(entries))
 		for i := range entries {
 			complete[i] = make(chan bool)
-			go func(entry db.Entry, done chan bool) {
-				defer close(done) // Ensure the channel is closed when processing is done
-				dp.processEntry(entry, done)
-			}(entries[i], complete[i])
+			go dp.processEntry(entries[i], complete[i])
 		}
 
 		// Wait for all entries to be processed
@@ -73,6 +70,8 @@ func (dp *DocumentProcessor) processEntry(entry db.Entry, done chan bool) {
 
 	if err != nil {
 		log.Printf("error reading entry with id %s ", entry.ID)
+		done <- false
+		return
 	}
 
 	files, err := dp.storage.GetFiles(entry.ID.String())
@@ -93,17 +92,15 @@ func (dp *DocumentProcessor) processEntry(entry db.Entry, done chan bool) {
 	if !ok {
 		dp.updateOnCompletion(entry, "failed")
 	} else {
-
+		doneChans := make([]chan bool, len(documents))
 		for i := range documents {
-
-			filename, _ := dp.storage.TransformName(entry.ID.String(), documents[i].Filename)
-			pages, _ := dp.converter.GetPageCount(filename)
-			dp.store.UpdatePageCount(dp.ctx, db.UpdatePageCountParams{
-				PageCount: pages,
-				ID:        documents[i].ID,
-			})
-
+			doneChans[i] = make(chan bool)
+			go dp.updateDocumentPages(entry, &documents[i], doneChans[i])
 		}
+		for i := range doneChans {
+			<-doneChans[i]
+		}
+
 		dp.updateOnCompletion(entry, "success")
 
 	}
@@ -115,4 +112,18 @@ func (dp *DocumentProcessor) updateOnCompletion(entry db.Entry, status string) {
 		Status: status,
 		ID:     entry.ID,
 	})
+}
+
+func (dp *DocumentProcessor) updateDocumentPages(entry db.Entry, document *db.Document, done chan bool) {
+	filename, _ := dp.storage.TransformName(entry.ID.String(), document.Filename)
+	pages, err := dp.converter.GetPageCount(filename)
+	if err != nil {
+		done <- false
+		return
+	}
+	dp.store.UpdatePageCount(dp.ctx, db.UpdatePageCountParams{
+		PageCount: pages,
+		ID:        document.ID,
+	})
+	done <- true
 }

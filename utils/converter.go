@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"sync"
 
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 )
@@ -34,32 +33,20 @@ func (conv PdfConverter) Merge(filenames []string, outputFile string, done chan 
 
 func (conv PdfConverter) Convert(filenames []string, outputDir string, done chan bool) {
 
-	var wg sync.WaitGroup
-	errs := make(chan error, len(filenames))
-
+	doneChan := make([]chan bool, len(filenames))
 	for i := range filenames {
-		wg.Add(1)
-		go func(name string) {
-			defer wg.Done()
-			conv.convert(name, outputDir, errs)
-		}(filenames[i])
+		doneChan[i] = make(chan bool)
+		go conv.convert(filenames[i], outputDir, doneChan[i])
 	}
 
-	wg.Wait()
-
-	close(errs)
-
-	for err := range errs {
-		if err != nil {
-			done <- false
-			return
-		}
+	for i := range doneChan {
+		<-doneChan[i]
 	}
 
 	done <- true
 }
 
-func (conv PdfConverter) convert(name string, outputDir string, done chan error) {
+func (conv PdfConverter) convert(name string, outputDir string, done chan bool) {
 
 	finalOutputDir := path.Join(rootDir, outputDir, convertedDir)
 	filename := path.Join(rootDir, outputDir, name)
@@ -71,9 +58,9 @@ func (conv PdfConverter) convert(name string, outputDir string, done chan error)
 	err := cmd.Run()
 	if err != nil {
 		fmt.Println(err.Error())
-		done <- err
+		done <- false
 		return
 	}
 
-	done <- nil
+	done <- true
 }

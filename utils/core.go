@@ -29,7 +29,7 @@ type Storage interface {
 }
 
 type Converter interface {
-	convert(name string, outputDir string, done chan error)
+	convert(name string, outputDir string, done chan bool)
 	Convert(filenames []string, outputDir string, done chan bool)
 	Merge(filenames []string, outputFile string, done chan bool)
 	GetPageCount(fullName string) (int32, error)
@@ -51,7 +51,7 @@ func IsPasswordValid(providedPassword string, hashedPassword string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(providedPassword))
 }
 
-func ZipEntry(source, target string) error {
+func zipDir(source, target string) error {
 	// 1. Create a ZIP file and zip.Writer
 	f, err := os.Create(target)
 	if err != nil {
