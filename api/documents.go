@@ -18,6 +18,9 @@ import (
 )
 
 func (server *Server) convert(c *gin.Context) {
+	reqCtx, cancel := context.WithCancel(server.ctx)
+	defer cancel()
+
 	operation := c.PostForm("operation")
 	if strings.ToLower(operation) != "convert" &&
 		strings.ToLower(operation) != "merge" {
@@ -38,7 +41,7 @@ func (server *Server) convert(c *gin.Context) {
 		return
 	}
 
-	user, err := server.store.GetUserByUsername(context.Background(), claims.Username)
+	user, err := server.store.GetUserByUsername(reqCtx, claims.Username)
 	entryId := uuid.New()
 
 	if err != nil {
@@ -71,6 +74,7 @@ func (server *Server) convert(c *gin.Context) {
 }
 
 func (server *Server) storeUploadedFiles(c *gin.Context, files []*multipart.FileHeader, entryId uuid.UUID) {
+
 	var wg sync.WaitGroup
 	for _, file := range files {
 		wg.Add(1)
@@ -86,14 +90,16 @@ func (server *Server) storeUploadedFiles(c *gin.Context, files []*multipart.File
 }
 
 func (server *Server) createEntryWithDocuments(files []*multipart.FileHeader, entryParams db.CreateEntryWithIdParams) {
-	entry, _ := server.store.CreateEntryWithId(context.Background(), entryParams)
+	reqCtx, cancel := context.WithCancel(server.ctx)
+	defer cancel()
+	entry, _ := server.store.CreateEntryWithId(reqCtx, entryParams)
 	var wg sync.WaitGroup
 	for _, file := range files {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			filename := filepath.Base(file.Filename)
-			server.store.CreateDocument(context.Background(), db.CreateDocumentParams{
+			server.store.CreateDocument(reqCtx, db.CreateDocumentParams{
 				EntryID:  entry.ID,
 				Filename: filename,
 			})
@@ -103,6 +109,8 @@ func (server *Server) createEntryWithDocuments(files []*multipart.FileHeader, en
 }
 
 func (server *Server) retrieve(ctx *gin.Context) {
+	reqCtx, cancel := context.WithCancel(server.ctx)
+	defer cancel()
 	var req entryRequest
 
 	if err := ctx.ShouldBindUri(&req); err != nil {
@@ -110,7 +118,7 @@ func (server *Server) retrieve(ctx *gin.Context) {
 		return
 	}
 	parsed, _ := uuid.Parse(req.Id)
-	entry, err := server.store.GetEntry(context.Background(), parsed)
+	entry, err := server.store.GetEntry(reqCtx, parsed)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			ctx.JSON(http.StatusNotFound, err)

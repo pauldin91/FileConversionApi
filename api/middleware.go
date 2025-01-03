@@ -27,7 +27,7 @@ func (server *Server) authorize() gin.HandlerFunc {
 		}
 		valid, err := server.tokenGenerator.Validate(bearer[1])
 		if err != nil {
-			ctx.AbortWithStatusJSON(http.StatusInternalServerError, "server error")
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, "token invalid error")
 			return
 		} else if valid == nil {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, "invalid")

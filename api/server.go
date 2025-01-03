@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"path/filepath"
 
 	db "github.com/FileConversionApi/db/sqlc"
@@ -12,16 +13,20 @@ type Server struct {
 	cfg            utils.Config
 	store          db.Store
 	router         *gin.Engine
+	ctx            context.Context
 	tokenGenerator utils.Generator
 	storage        utils.Storage
+	cancel         context.CancelFunc
 }
 
-func NewServer(cfg utils.Config, tokenGenerator utils.Generator, store db.Store, storage utils.Storage) *Server {
-
+func NewServer(cfg utils.Config, tokenGenerator utils.Generator, store db.Store, parentCtx context.Context, storage utils.Storage) *Server {
+	ctx, cancel := context.WithCancel(parentCtx)
 	server := &Server{
 		cfg:            cfg,
 		store:          store,
 		tokenGenerator: tokenGenerator,
+		ctx:            ctx,
+		cancel:         cancel,
 		storage:        storage,
 	}
 

@@ -11,6 +11,9 @@ import (
 )
 
 func (server *Server) login(ctx *gin.Context) {
+	reqCtx, cancel := context.WithCancel(server.ctx)
+	defer cancel()
+
 	var req loginRequest
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -18,7 +21,7 @@ func (server *Server) login(ctx *gin.Context) {
 		return
 	}
 
-	user, err := server.store.GetUserByUsername(context.Background(), req.Username)
+	user, err := server.store.GetUserByUsername(reqCtx, req.Username)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			ctx.JSON(http.StatusNotFound, errors.New("invalid credentials"))

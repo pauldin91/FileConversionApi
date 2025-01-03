@@ -47,7 +47,7 @@ func main() {
 	errChan := make(chan error, 1)
 
 	// Launch the background processor
-	go launchProcessor(store, storage, converter, errChan)
+	go launchProcessor(store, storage, ctx, converter, errChan)
 
 	// Set up signal handling for graceful shutdown
 	signalChan := make(chan os.Signal, 1)
@@ -70,7 +70,7 @@ func main() {
 	}()
 
 	gen := utils.NewJwtGenerator(config.SigningKey)
-	server := api.NewServer(config, gen, store, storage)
+	server := api.NewServer(config, gen, store, ctx, storage)
 
 	go func() {
 		if err := server.Start(); err != nil {
@@ -96,8 +96,10 @@ func runDBMigration(migrationURL string, dbSource string) {
 	log.Info().Msg("db migrated successfully")
 }
 
-func launchProcessor(store db.Store, storage utils.Storage, converter utils.Converter, errChan chan error) {
-	ctx := context.Background()
-	processor := workers.NewDocumentProcessor(store, ctx, converter, storage)
+func launchProcessor(store db.Store, storage utils.Storage, ctx context.Context, converter utils.Converter, errChan chan error) {
+	reqCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	processor := workers.NewDocumentProcessor(store, reqCtx, converter, storage)
 	processor.Work(errChan)
 }

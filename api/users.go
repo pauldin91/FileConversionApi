@@ -11,6 +11,8 @@ import (
 )
 
 func (server *Server) createUser(ctx *gin.Context) {
+	reqCtx, cancel := context.WithCancel(server.ctx)
+	defer cancel()
 
 	var req createUserRequest
 
@@ -29,7 +31,7 @@ func (server *Server) createUser(ctx *gin.Context) {
 		FullName:       req.FullName,
 		Email:          req.Email,
 	}
-	user, err := server.store.CreateUser(context.Background(), arg)
+	user, err := server.store.CreateUser(reqCtx, arg)
 
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, err)
@@ -46,6 +48,9 @@ func (server *Server) createUser(ctx *gin.Context) {
 }
 
 func (server *Server) listUsers(ctx *gin.Context) {
+	reqCtx, cancel := context.WithCancel(server.ctx)
+	defer cancel()
+
 	var req listUsersRequest
 	if err := ctx.ShouldBindQuery(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, err)
@@ -56,7 +61,7 @@ func (server *Server) listUsers(ctx *gin.Context) {
 		Offset: (req.PageID - 1) * req.PageSize,
 	}
 
-	users, err := server.store.GetUsers(context.Background(), arg)
+	users, err := server.store.GetUsers(reqCtx, arg)
 	if err != nil {
 		ctx.JSON(http.StatusNotFound, err)
 		return
@@ -65,13 +70,16 @@ func (server *Server) listUsers(ctx *gin.Context) {
 }
 
 func (server *Server) getUser(ctx *gin.Context) {
+	reqCtx, cancel := context.WithCancel(server.ctx)
+	defer cancel()
+
 	var req userRequest
 
 	if err := ctx.ShouldBindUri(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, err)
 		return
 	}
-	user, err := server.store.GetUserByEmail(context.Background(), req.Email)
+	user, err := server.store.GetUserByEmail(reqCtx, req.Email)
 	if err != nil {
 		ctx.JSON(http.StatusNotFound, err)
 		return
