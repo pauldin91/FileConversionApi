@@ -13,14 +13,16 @@ type LocalStorage struct {
 
 func (st LocalStorage) GetFiles(dirname string) ([]string, error) {
 	fullPath := path.Join(rootDir, dirname)
+	os.MkdirAll(fullPath, 0750)
 	contents, err := os.ReadDir(fullPath)
 	if err != nil {
 		return nil, errors.New("directory does not exist")
 	}
 	var files []string
 	for i := range contents {
-		if !contents[i].IsDir() {
-			files = append(files, contents[i].Name())
+		if !contents[i].IsDir() && strings.Split(contents[i].Name(), ".")[1] != "zip" {
+			fullFilename := path.Join(rootDir, dirname, contents[i].Name())
+			files = append(files, fullFilename)
 		}
 	}
 	return files, nil
@@ -50,7 +52,7 @@ func (st LocalStorage) TransformName(dirname, filename string) (string, error) {
 	namePart := strings.Split(filename, ".")[0]
 	for i := range files {
 		if strings.Contains(filepath.Base(files[i]), namePart) {
-			return path.Join(rootDir, dirname, convertedDir, files[i]), nil
+			return path.Join(rootDir, dirname, convertedDir, filepath.Base(files[i])), nil
 		}
 	}
 
@@ -65,16 +67,16 @@ func (st LocalStorage) Retrieve(dirname string) (string, error) {
 	convertedTarget := path.Join(fullPathEntry, convertedDir)
 	ext := ".pdf"
 
-	if fileExists(zipFile) {
+	if st.FileExists(zipFile) {
 		return zipFile, nil
-	} else if directoryExists(convertedTarget) {
+	} else if st.DirectoryExists(convertedTarget) {
 		ext = ".zip"
 		zipDir(convertedTarget, zipFile)
 		defer os.RemoveAll(convertedTarget)
 	}
 
 	fullPathFileName := path.Join(fullPathEntry, dirname+ext)
-	exists := fileExists(fullPathFileName)
+	exists := st.FileExists(fullPathFileName)
 
 	if !exists {
 		return "", errors.New("document does not exist")
@@ -88,7 +90,7 @@ func (st LocalStorage) GetFilename(dirname, filename string) string {
 
 }
 
-func directoryExists(dirPath string) bool {
+func (st LocalStorage) DirectoryExists(dirPath string) bool {
 	info, err := os.Stat(dirPath)
 	if os.IsNotExist(err) {
 		return false // Directory does not exist
@@ -96,7 +98,7 @@ func directoryExists(dirPath string) bool {
 	return err == nil && info.IsDir() // Exists and is a directory
 }
 
-func fileExists(filePath string) bool {
+func (st LocalStorage) FileExists(filePath string) bool {
 	_, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
 		return false

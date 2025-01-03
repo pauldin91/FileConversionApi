@@ -26,10 +26,12 @@ type Storage interface {
 	GetFilename(dirname, filename string) string
 	TransformName(dirname, filename string) (string, error)
 	GetFiles(dirname string) ([]string, error)
+	FileExists(filePath string) bool
+	DirectoryExists(dirPath string) bool
 }
 
 type Converter interface {
-	convert(name string, outputDir string, done chan bool)
+	convert(name string, outputDir string) error
 	Convert(filenames []string, outputDir string, done chan bool)
 	Merge(filenames []string, outputFile string, done chan bool)
 	GetPageCount(fullName string) (int32, error)

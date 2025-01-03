@@ -31,9 +31,8 @@ func (server *Server) login(ctx *gin.Context) {
 		ctx.JSON(http.StatusNotFound, errors.New("invalid credentials"))
 		return
 	}
-	parsed, _ := user.ID.MarshalJSON()
 
-	token, err := server.tokenGenerator.Generate(string(parsed), user.Username, user.Role.String)
+	token, err := server.tokenGenerator.Generate(user.ID.String(), user.Username, user.Role)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, errors.New("something gone wrong"))
 		return

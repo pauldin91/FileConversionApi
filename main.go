@@ -67,7 +67,6 @@ func main() {
 		}
 	}()
 
-	// Start the HTTPS server
 	gen := utils.NewJwtGenerator(config.SigningKey)
 	server := api.NewServer(config, gen, store, ctx)
 
@@ -75,10 +74,9 @@ func main() {
 		if err := server.Start(); err != nil {
 			log.Fatal().Err(err).Msg("Failed to start server")
 		}
-		cancel() // Ensure the application shuts down if the server fails
+		cancel() 
 	}()
 
-	// Wait for all goroutines to finish
 	wg.Wait()
 	log.Info().Msg("Application shut down gracefully.")
 }

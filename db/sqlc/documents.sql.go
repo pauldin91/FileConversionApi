@@ -136,7 +136,7 @@ type GetDocumentsByUserIdRow struct {
 	UserID   pgtype.UUID `json:"user_id"`
 }
 
-func (q *Queries) GetDocumentsByUserId(ctx context.Context, userID pgtype.UUID) ([]GetDocumentsByUserIdRow, error) {
+func (q *Queries) GetDocumentsByUserId(ctx context.Context, userID uuid.UUID) ([]GetDocumentsByUserIdRow, error) {
 	rows, err := q.db.Query(ctx, getDocumentsByUserId, userID)
 	if err != nil {
 		return nil, err

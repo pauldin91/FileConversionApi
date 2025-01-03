@@ -1,0 +1,1 @@
+ALTER TABLE entries ADD COLUMN max_retries integer NOT NULL DEFAULT(3);

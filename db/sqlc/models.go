@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Document struct {
@@ -19,20 +18,21 @@ type Document struct {
 }
 
 type Entry struct {
-	ID        uuid.UUID   `json:"id"`
-	CreatedAt time.Time   `json:"created_at"`
-	UserID    pgtype.UUID `json:"user_id"`
-	Status    string      `json:"status"`
-	Operation string      `json:"operation"`
+	ID         uuid.UUID `json:"id"`
+	UserID     uuid.UUID `json:"user_id"`
+	CreatedAt  time.Time `json:"created_at"`
+	Status     string    `json:"status"`
+	Operation  string    `json:"operation"`
+	MaxRetries int32     `json:"max_retries"`
 }
 
 type User struct {
-	Username          string      `json:"username"`
-	HashedPassword    string      `json:"hashed_password"`
-	FullName          string      `json:"full_name"`
-	Email             string      `json:"email"`
-	PasswordChangedAt time.Time   `json:"password_changed_at"`
-	CreatedAt         time.Time   `json:"created_at"`
-	ID                pgtype.UUID `json:"id"`
-	Role              pgtype.Text `json:"role"`
+	ID                uuid.UUID `json:"id"`
+	Username          string    `json:"username"`
+	HashedPassword    string    `json:"hashed_password"`
+	FullName          string    `json:"full_name"`
+	Email             string    `json:"email"`
+	PasswordChangedAt time.Time `json:"password_changed_at"`
+	CreatedAt         time.Time `json:"created_at"`
+	Role              string    `json:"role"`
 }

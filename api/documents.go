@@ -59,7 +59,7 @@ func (server *Server) convert(c *gin.Context) {
 			Filename: filename,
 		})
 		if err != nil {
-			c.JSON(http.StatusNotFound, err.Error())
+			c.JSON(http.StatusInternalServerError, err.Error())
 			return
 		}
 		fullPath := storageUtil.GetFilename(entry.ID.String(), filename)
@@ -103,7 +103,7 @@ func (server *Server) retrieve(ctx *gin.Context) {
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, err)
 		return
-	} else if parsed, _ := entry.UserID.MarshalJSON(); claims.UserId != string(parsed) {
+	} else if parsed := entry.UserID.String(); claims.UserId != string(parsed) {
 		ctx.JSON(http.StatusForbidden, err)
 		return
 	}

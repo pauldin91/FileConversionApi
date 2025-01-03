@@ -9,7 +9,6 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createEntry = `-- name: CreateEntry :one
@@ -18,12 +17,12 @@ INSERT INTO entries (
   operation
 ) VALUES (
   $1, $2
-) RETURNING id, created_at, user_id, status, operation
+) RETURNING id, user_id, created_at, status, operation, max_retries
 `
 
 type CreateEntryParams struct {
-	UserID    pgtype.UUID `json:"user_id"`
-	Operation string      `json:"operation"`
+	UserID    uuid.UUID `json:"user_id"`
+	Operation string    `json:"operation"`
 }
 
 func (q *Queries) CreateEntry(ctx context.Context, arg CreateEntryParams) (Entry, error) {
@@ -31,16 +30,17 @@ func (q *Queries) CreateEntry(ctx context.Context, arg CreateEntryParams) (Entry
 	var i Entry
 	err := row.Scan(
 		&i.ID,
-		&i.CreatedAt,
 		&i.UserID,
+		&i.CreatedAt,
 		&i.Status,
 		&i.Operation,
+		&i.MaxRetries,
 	)
 	return i, err
 }
 
 const getEntriesByStatus = `-- name: GetEntriesByStatus :many
-SELECT id, created_at, user_id, status, operation FROM entries 
+SELECT id, user_id, created_at, status, operation, max_retries FROM entries 
 WHERE status=$1
 LIMIT $2
 `
@@ -61,10 +61,11 @@ func (q *Queries) GetEntriesByStatus(ctx context.Context, arg GetEntriesByStatus
 		var i Entry
 		if err := rows.Scan(
 			&i.ID,
-			&i.CreatedAt,
 			&i.UserID,
+			&i.CreatedAt,
 			&i.Status,
 			&i.Operation,
+			&i.MaxRetries,
 		); err != nil {
 			return nil, err
 		}
@@ -77,11 +78,11 @@ func (q *Queries) GetEntriesByStatus(ctx context.Context, arg GetEntriesByStatus
 }
 
 const getEntriesByUser = `-- name: GetEntriesByUser :many
-SELECT id, created_at, user_id, status, operation FROM entries
+SELECT id, user_id, created_at, status, operation, max_retries FROM entries
 WHERE user_id = $1
 `
 
-func (q *Queries) GetEntriesByUser(ctx context.Context, userID pgtype.UUID) ([]Entry, error) {
+func (q *Queries) GetEntriesByUser(ctx context.Context, userID uuid.UUID) ([]Entry, error) {
 	rows, err := q.db.Query(ctx, getEntriesByUser, userID)
 	if err != nil {
 		return nil, err
@@ -92,10 +93,11 @@ func (q *Queries) GetEntriesByUser(ctx context.Context, userID pgtype.UUID) ([]E
 		var i Entry
 		if err := rows.Scan(
 			&i.ID,
-			&i.CreatedAt,
 			&i.UserID,
+			&i.CreatedAt,
 			&i.Status,
 			&i.Operation,
+			&i.MaxRetries,
 		); err != nil {
 			return nil, err
 		}
@@ -108,7 +110,7 @@ func (q *Queries) GetEntriesByUser(ctx context.Context, userID pgtype.UUID) ([]E
 }
 
 const getEntry = `-- name: GetEntry :one
-SELECT id, created_at, user_id, status, operation FROM entries
+SELECT id, user_id, created_at, status, operation, max_retries FROM entries
 WHERE id = $1 LIMIT 1
 `
 
@@ -117,25 +119,26 @@ func (q *Queries) GetEntry(ctx context.Context, id uuid.UUID) (Entry, error) {
 	var i Entry
 	err := row.Scan(
 		&i.ID,
-		&i.CreatedAt,
 		&i.UserID,
+		&i.CreatedAt,
 		&i.Status,
 		&i.Operation,
+		&i.MaxRetries,
 	)
 	return i, err
 }
 
 const listEntries = `-- name: ListEntries :many
-SELECT id, created_at, user_id, status, operation FROM entries
+SELECT id, user_id, created_at, status, operation, max_retries FROM entries
 WHERE user_id = $1
 LIMIT $2
 OFFSET $3
 `
 
 type ListEntriesParams struct {
-	UserID pgtype.UUID `json:"user_id"`
-	Limit  int32       `json:"limit"`
-	Offset int32       `json:"offset"`
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
 }
 
 func (q *Queries) ListEntries(ctx context.Context, arg ListEntriesParams) ([]Entry, error) {
@@ -149,10 +152,11 @@ func (q *Queries) ListEntries(ctx context.Context, arg ListEntriesParams) ([]Ent
 		var i Entry
 		if err := rows.Scan(
 			&i.ID,
-			&i.CreatedAt,
 			&i.UserID,
+			&i.CreatedAt,
 			&i.Status,
 			&i.Operation,
+			&i.MaxRetries,
 		); err != nil {
 			return nil, err
 		}
@@ -164,11 +168,37 @@ func (q *Queries) ListEntries(ctx context.Context, arg ListEntriesParams) ([]Ent
 	return items, nil
 }
 
+const updateRetries = `-- name: UpdateRetries :one
+UPDATE entries
+SET max_retries = $1
+WHERE id = $2
+RETURNING id, user_id, created_at, status, operation, max_retries
+`
+
+type UpdateRetriesParams struct {
+	MaxRetries int32     `json:"max_retries"`
+	ID         uuid.UUID `json:"id"`
+}
+
+func (q *Queries) UpdateRetries(ctx context.Context, arg UpdateRetriesParams) (Entry, error) {
+	row := q.db.QueryRow(ctx, updateRetries, arg.MaxRetries, arg.ID)
+	var i Entry
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.Status,
+		&i.Operation,
+		&i.MaxRetries,
+	)
+	return i, err
+}
+
 const updateStatus = `-- name: UpdateStatus :one
 UPDATE entries
 SET status = $1
 WHERE id = $2
-RETURNING id, created_at, user_id, status, operation
+RETURNING id, user_id, created_at, status, operation, max_retries
 `
 
 type UpdateStatusParams struct {
@@ -181,10 +211,11 @@ func (q *Queries) UpdateStatus(ctx context.Context, arg UpdateStatusParams) (Ent
 	var i Entry
 	err := row.Scan(
 		&i.ID,
-		&i.CreatedAt,
 		&i.UserID,
+		&i.CreatedAt,
 		&i.Status,
 		&i.Operation,
+		&i.MaxRetries,
 	)
 	return i, err
 }
