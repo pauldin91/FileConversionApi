@@ -18,12 +18,13 @@ type Document struct {
 }
 
 type Entry struct {
-	ID         uuid.UUID `json:"id"`
-	UserID     uuid.UUID `json:"user_id"`
-	CreatedAt  time.Time `json:"created_at"`
-	Status     string    `json:"status"`
-	Operation  string    `json:"operation"`
-	MaxRetries int32     `json:"max_retries"`
+	ID          uuid.UUID `json:"id"`
+	UserID      uuid.UUID `json:"user_id"`
+	CreatedAt   time.Time `json:"created_at"`
+	Status      string    `json:"status"`
+	Operation   string    `json:"operation"`
+	MaxRetries  int32     `json:"max_retries"`
+	TimeElapsed float64   `json:"time_elapsed"`
 }
 
 type User struct {

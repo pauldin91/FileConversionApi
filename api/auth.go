@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -17,7 +18,7 @@ func (server *Server) login(ctx *gin.Context) {
 		return
 	}
 
-	user, err := server.store.GetUserByUsername(server.ctx, req.Username)
+	user, err := server.store.GetUserByUsername(context.Background(), req.Username)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			ctx.JSON(http.StatusNotFound, errors.New("invalid credentials"))

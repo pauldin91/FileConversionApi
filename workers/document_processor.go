@@ -3,6 +3,7 @@ package workers
 import (
 	"context"
 	"log"
+	"time"
 
 	db "github.com/FileConversionApi/db/sqlc"
 	"github.com/FileConversionApi/utils"
@@ -28,33 +29,33 @@ func NewDocumentProcessor(store db.Store, ctx context.Context, converter utils.C
 func (dp *DocumentProcessor) Work(errChan chan error) {
 	for {
 		// Check for shutdown signal
-		select {
-		case <-dp.ctx.Done():
-			// Graceful shutdown
-			return
-		default:
-			//time.Sleep(time.Minute)
-			// Fetch entries to process
-			entries, err := dp.store.GetEntriesByStatus(dp.ctx, db.GetEntriesByStatusParams{
-				Status: "processing",
-				Limit:  10,
-			})
-			if err != nil {
-				if err != pgx.ErrNoRows {
-					errChan <- err
-				}
-				continue
+		//select {
+		//case <-dp.ctx.Done():
+		//	// Graceful shutdown
+		//	return
+		//default:
+		//time.Sleep(time.Second)
+		// Fetch entries to process
+		entries, err := dp.store.GetEntriesByStatus(dp.ctx, db.GetEntriesByStatusParams{
+			Status: "processing",
+			Limit:  10,
+		})
+		if err != nil {
+			if err != pgx.ErrNoRows {
+				errChan <- err
 			}
-			complete := make([]chan bool, len(entries))
-			for i := range entries {
-				complete[i] = make(chan bool)
-				go dp.processEntry(entries[i], complete[i])
-			}
-
-			for i := range complete {
-				<-complete[i]
-			}
+			continue
 		}
+		complete := make([]chan bool, len(entries))
+		for i := range entries {
+			complete[i] = make(chan bool)
+			go dp.processEntry(entries[i], complete[i])
+		}
+
+		for i := range complete {
+			<-complete[i]
+		}
+		//}
 	}
 }
 
@@ -63,7 +64,7 @@ func (dp *DocumentProcessor) processEntry(entry db.Entry, done chan bool) {
 		EntryID: entry.ID,
 		Limit:   10,
 	})
-
+	start := time.Now()
 	if err != nil {
 		log.Printf("error reading entry with id %s ", entry.ID)
 		dp.updateRetries(entry, done)
@@ -96,7 +97,7 @@ func (dp *DocumentProcessor) processEntry(entry db.Entry, done chan bool) {
 	ok := <-doneChan
 
 	if !ok {
-		dp.updateOnCompletion(entry, "failed")
+		dp.updateOnCompletion(entry, "failed", 0.0)
 	} else {
 		doneChans := make([]chan bool, len(documents))
 		for i := range documents {
@@ -106,17 +107,18 @@ func (dp *DocumentProcessor) processEntry(entry db.Entry, done chan bool) {
 		for i := range doneChans {
 			<-doneChans[i]
 		}
-
-		dp.updateOnCompletion(entry, "success")
+		timeElapsed := time.Since(start).Seconds()
+		dp.updateOnCompletion(entry, "success", timeElapsed)
 
 	}
 	done <- ok
 }
 
-func (dp *DocumentProcessor) updateOnCompletion(entry db.Entry, status string) {
-	dp.store.UpdateStatus(dp.ctx, db.UpdateStatusParams{
-		Status: status,
-		ID:     entry.ID,
+func (dp *DocumentProcessor) updateOnCompletion(entry db.Entry, status string, timeElapsed float64) {
+	dp.store.UpdateProcessed(dp.ctx, db.UpdateProcessedParams{
+		Status:      status,
+		ID:          entry.ID,
+		TimeElapsed: timeElapsed,
 	})
 }
 
@@ -141,7 +143,7 @@ func (dp *DocumentProcessor) updateRetries(entry db.Entry, done chan bool) {
 		return
 	}
 	if current.MaxRetries == 0 {
-		dp.updateOnCompletion(entry, "failed")
+		dp.updateOnCompletion(entry, "failed", 0.0)
 		done <- false
 		return
 	}

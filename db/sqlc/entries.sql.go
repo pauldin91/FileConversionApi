@@ -17,7 +17,7 @@ INSERT INTO entries (
   operation
 ) VALUES (
   $1, $2
-) RETURNING id, user_id, created_at, status, operation, max_retries
+) RETURNING id, user_id, created_at, status, operation, max_retries, time_elapsed
 `
 
 type CreateEntryParams struct {
@@ -35,12 +35,44 @@ func (q *Queries) CreateEntry(ctx context.Context, arg CreateEntryParams) (Entry
 		&i.Status,
 		&i.Operation,
 		&i.MaxRetries,
+		&i.TimeElapsed,
+	)
+	return i, err
+}
+
+const createEntryWithId = `-- name: CreateEntryWithId :one
+INSERT INTO entries (
+  id,
+  user_id,
+  operation
+) VALUES (
+  $1, $2, $3
+) RETURNING id, user_id, created_at, status, operation, max_retries, time_elapsed
+`
+
+type CreateEntryWithIdParams struct {
+	ID        uuid.UUID `json:"id"`
+	UserID    uuid.UUID `json:"user_id"`
+	Operation string    `json:"operation"`
+}
+
+func (q *Queries) CreateEntryWithId(ctx context.Context, arg CreateEntryWithIdParams) (Entry, error) {
+	row := q.db.QueryRow(ctx, createEntryWithId, arg.ID, arg.UserID, arg.Operation)
+	var i Entry
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.Status,
+		&i.Operation,
+		&i.MaxRetries,
+		&i.TimeElapsed,
 	)
 	return i, err
 }
 
 const getEntriesByStatus = `-- name: GetEntriesByStatus :many
-SELECT id, user_id, created_at, status, operation, max_retries FROM entries 
+SELECT id, user_id, created_at, status, operation, max_retries, time_elapsed FROM entries 
 WHERE status=$1
 LIMIT $2
 `
@@ -66,6 +98,7 @@ func (q *Queries) GetEntriesByStatus(ctx context.Context, arg GetEntriesByStatus
 			&i.Status,
 			&i.Operation,
 			&i.MaxRetries,
+			&i.TimeElapsed,
 		); err != nil {
 			return nil, err
 		}
@@ -78,7 +111,7 @@ func (q *Queries) GetEntriesByStatus(ctx context.Context, arg GetEntriesByStatus
 }
 
 const getEntriesByUser = `-- name: GetEntriesByUser :many
-SELECT id, user_id, created_at, status, operation, max_retries FROM entries
+SELECT id, user_id, created_at, status, operation, max_retries, time_elapsed FROM entries
 WHERE user_id = $1
 `
 
@@ -98,6 +131,7 @@ func (q *Queries) GetEntriesByUser(ctx context.Context, userID uuid.UUID) ([]Ent
 			&i.Status,
 			&i.Operation,
 			&i.MaxRetries,
+			&i.TimeElapsed,
 		); err != nil {
 			return nil, err
 		}
@@ -110,7 +144,7 @@ func (q *Queries) GetEntriesByUser(ctx context.Context, userID uuid.UUID) ([]Ent
 }
 
 const getEntry = `-- name: GetEntry :one
-SELECT id, user_id, created_at, status, operation, max_retries FROM entries
+SELECT id, user_id, created_at, status, operation, max_retries, time_elapsed FROM entries
 WHERE id = $1 LIMIT 1
 `
 
@@ -124,12 +158,13 @@ func (q *Queries) GetEntry(ctx context.Context, id uuid.UUID) (Entry, error) {
 		&i.Status,
 		&i.Operation,
 		&i.MaxRetries,
+		&i.TimeElapsed,
 	)
 	return i, err
 }
 
 const listEntries = `-- name: ListEntries :many
-SELECT id, user_id, created_at, status, operation, max_retries FROM entries
+SELECT id, user_id, created_at, status, operation, max_retries, time_elapsed FROM entries
 WHERE user_id = $1
 LIMIT $2
 OFFSET $3
@@ -157,6 +192,7 @@ func (q *Queries) ListEntries(ctx context.Context, arg ListEntriesParams) ([]Ent
 			&i.Status,
 			&i.Operation,
 			&i.MaxRetries,
+			&i.TimeElapsed,
 		); err != nil {
 			return nil, err
 		}
@@ -168,11 +204,39 @@ func (q *Queries) ListEntries(ctx context.Context, arg ListEntriesParams) ([]Ent
 	return items, nil
 }
 
+const updateProcessed = `-- name: UpdateProcessed :one
+UPDATE entries
+SET status = $1, time_elapsed = $2
+WHERE id = $3
+RETURNING id, user_id, created_at, status, operation, max_retries, time_elapsed
+`
+
+type UpdateProcessedParams struct {
+	Status      string    `json:"status"`
+	TimeElapsed float64   `json:"time_elapsed"`
+	ID          uuid.UUID `json:"id"`
+}
+
+func (q *Queries) UpdateProcessed(ctx context.Context, arg UpdateProcessedParams) (Entry, error) {
+	row := q.db.QueryRow(ctx, updateProcessed, arg.Status, arg.TimeElapsed, arg.ID)
+	var i Entry
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.Status,
+		&i.Operation,
+		&i.MaxRetries,
+		&i.TimeElapsed,
+	)
+	return i, err
+}
+
 const updateRetries = `-- name: UpdateRetries :one
 UPDATE entries
 SET max_retries = $1
 WHERE id = $2
-RETURNING id, user_id, created_at, status, operation, max_retries
+RETURNING id, user_id, created_at, status, operation, max_retries, time_elapsed
 `
 
 type UpdateRetriesParams struct {
@@ -190,32 +254,7 @@ func (q *Queries) UpdateRetries(ctx context.Context, arg UpdateRetriesParams) (E
 		&i.Status,
 		&i.Operation,
 		&i.MaxRetries,
-	)
-	return i, err
-}
-
-const updateStatus = `-- name: UpdateStatus :one
-UPDATE entries
-SET status = $1
-WHERE id = $2
-RETURNING id, user_id, created_at, status, operation, max_retries
-`
-
-type UpdateStatusParams struct {
-	Status string    `json:"status"`
-	ID     uuid.UUID `json:"id"`
-}
-
-func (q *Queries) UpdateStatus(ctx context.Context, arg UpdateStatusParams) (Entry, error) {
-	row := q.db.QueryRow(ctx, updateStatus, arg.Status, arg.ID)
-	var i Entry
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.CreatedAt,
-		&i.Status,
-		&i.Operation,
-		&i.MaxRetries,
+		&i.TimeElapsed,
 	)
 	return i, err
 }

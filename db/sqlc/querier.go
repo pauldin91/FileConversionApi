@@ -13,6 +13,7 @@ import (
 type Querier interface {
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
 	CreateEntry(ctx context.Context, arg CreateEntryParams) (Entry, error)
+	CreateEntryWithId(ctx context.Context, arg CreateEntryWithIdParams) (Entry, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	GetDocument(ctx context.Context, id uuid.UUID) (Document, error)
 	GetDocumentsByEntryId(ctx context.Context, arg GetDocumentsByEntryIdParams) ([]Document, error)
@@ -29,8 +30,8 @@ type Querier interface {
 	ListDocuments(ctx context.Context, arg ListDocumentsParams) ([]Document, error)
 	ListEntries(ctx context.Context, arg ListEntriesParams) ([]Entry, error)
 	UpdatePageCount(ctx context.Context, arg UpdatePageCountParams) (Document, error)
+	UpdateProcessed(ctx context.Context, arg UpdateProcessedParams) (Entry, error)
 	UpdateRetries(ctx context.Context, arg UpdateRetriesParams) (Entry, error)
-	UpdateStatus(ctx context.Context, arg UpdateStatusParams) (Entry, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 }
 

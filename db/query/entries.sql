@@ -6,10 +6,20 @@ INSERT INTO entries (
   $1, $2
 ) RETURNING *;
 
--- name: UpdateStatus :one
+-- name: CreateEntryWithId :one
+INSERT INTO entries (
+  id,
+  user_id,
+  operation
+) VALUES (
+  $1, $2, $3
+) RETURNING *;
+
+
+-- name: UpdateProcessed :one
 UPDATE entries
-SET status = $1
-WHERE id = $2
+SET status = $1, time_elapsed = $2
+WHERE id = $3
 RETURNING *;
 
 -- name: UpdateRetries :one

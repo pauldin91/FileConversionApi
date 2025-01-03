@@ -1,29 +1,30 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	db "github.com/FileConversionApi/db/sqlc"
-	"github.com/FileConversionApi/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/rs/zerolog/log"
 )
-
-var storageUtil = utils.LocalStorage{}
 
 func (server *Server) convert(c *gin.Context) {
 	operation := c.PostForm("operation")
-	if strings.ToLower(operation) != "conversion" &&
+	if strings.ToLower(operation) != "convert" &&
 		strings.ToLower(operation) != "merge" {
 		c.JSON(http.StatusBadRequest, errors.New("invalid operation for documents"))
 		return
 	}
-	// Multipart form
+
 	form, err := c.MultipartForm()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, err.Error())
@@ -37,14 +38,9 @@ func (server *Server) convert(c *gin.Context) {
 		return
 	}
 
-	user, err := server.store.GetUserByUsername(server.ctx, claims.Username)
+	user, err := server.store.GetUserByUsername(context.Background(), claims.Username)
+	entryId := uuid.New()
 
-	if err != nil {
-		c.JSON(http.StatusNotFound, err.Error())
-		return
-	}
-
-	entry, err := server.store.CreateEntry(server.ctx, db.CreateEntryParams{UserID: user.ID, Operation: operation})
 	if err != nil {
 		c.JSON(http.StatusNotFound, err.Error())
 		return
@@ -52,26 +48,58 @@ func (server *Server) convert(c *gin.Context) {
 
 	files := form.File["files"]
 	filenames := make([]string, len(files))
-	for _, file := range files {
-		filename := filepath.Base(file.Filename)
-		_, err := server.store.CreateDocument(server.ctx, db.CreateDocumentParams{
-			EntryID:  entry.ID,
-			Filename: filename,
-		})
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, err.Error())
-			return
-		}
-		fullPath := storageUtil.GetFilename(entry.ID.String(), filename)
-
-		if err = c.SaveUploadedFile(file, fullPath); err != nil {
-			c.JSON(http.StatusBadRequest, fmt.Sprintf("upload file err: %s", err.Error()))
-			return
-		}
+	for i, file := range files {
+		filenames[i] = file.Filename
 	}
 
-	c.JSON(http.StatusOK, fmt.Sprintf("Uploaded successfully files %s for %s", strings.Join(filenames, ","), operation))
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		server.storeUploadedFiles(c, files, entryId)
+	}()
+	wg.Wait()
 
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, err.Error())
+		return
+	}
+	go server.createEntryWithDocuments(files, db.CreateEntryWithIdParams{ID: entryId, UserID: user.ID, Operation: operation})
+
+	c.JSON(http.StatusOK, fmt.Sprintf("Uploaded successfully files %s for %s with id %s", strings.Join(filenames, ","), operation, entryId))
+
+}
+
+func (server *Server) storeUploadedFiles(c *gin.Context, files []*multipart.FileHeader, entryId uuid.UUID) {
+	var wg sync.WaitGroup
+	for _, file := range files {
+		wg.Add(1)
+		go func(uploadedFile *multipart.FileHeader) {
+			defer wg.Done()
+			fullPath := server.storage.GetFilename(entryId.String(), uploadedFile.Filename)
+			if err := c.SaveUploadedFile(file, fullPath); err != nil {
+				log.Err(err).Msgf("unable to upload file %s", file.Filename)
+			}
+		}(file)
+	}
+	wg.Wait()
+}
+
+func (server *Server) createEntryWithDocuments(files []*multipart.FileHeader, entryParams db.CreateEntryWithIdParams) {
+	entry, _ := server.store.CreateEntryWithId(context.Background(), entryParams)
+	var wg sync.WaitGroup
+	for _, file := range files {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			filename := filepath.Base(file.Filename)
+			server.store.CreateDocument(context.Background(), db.CreateDocumentParams{
+				EntryID:  entry.ID,
+				Filename: filename,
+			})
+		}()
+	}
+	wg.Wait()
 }
 
 func (server *Server) retrieve(ctx *gin.Context) {
@@ -82,7 +110,7 @@ func (server *Server) retrieve(ctx *gin.Context) {
 		return
 	}
 	parsed, _ := uuid.Parse(req.Id)
-	entry, err := server.store.GetEntry(server.ctx, parsed)
+	entry, err := server.store.GetEntry(context.Background(), parsed)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			ctx.JSON(http.StatusNotFound, err)
@@ -108,7 +136,7 @@ func (server *Server) retrieve(ctx *gin.Context) {
 		return
 	}
 
-	filename, err := storageUtil.Retrieve(entry.ID.String())
+	filename, err := server.storage.Retrieve(entry.ID.String())
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, err)
 		return

@@ -42,10 +42,12 @@ func main() {
 
 	store := db.NewStore(connPool)
 
+	converter := utils.PdfConverter{}
+	storage := utils.LocalStorage{}
 	errChan := make(chan error, 1)
 
 	// Launch the background processor
-	go launchProcessor(store, ctx, errChan)
+	go launchProcessor(store, storage, converter, errChan)
 
 	// Set up signal handling for graceful shutdown
 	signalChan := make(chan os.Signal, 1)
@@ -68,13 +70,13 @@ func main() {
 	}()
 
 	gen := utils.NewJwtGenerator(config.SigningKey)
-	server := api.NewServer(config, gen, store, ctx)
+	server := api.NewServer(config, gen, store, storage)
 
 	go func() {
 		if err := server.Start(); err != nil {
 			log.Fatal().Err(err).Msg("Failed to start server")
 		}
-		cancel() 
+		cancel()
 	}()
 
 	wg.Wait()
@@ -94,7 +96,8 @@ func runDBMigration(migrationURL string, dbSource string) {
 	log.Info().Msg("db migrated successfully")
 }
 
-func launchProcessor(store db.Store, ctx context.Context, errChan chan error) {
-	processor := workers.NewDocumentProcessor(store, ctx, utils.PdfConverter{}, utils.LocalStorage{})
+func launchProcessor(store db.Store, storage utils.Storage, converter utils.Converter, errChan chan error) {
+	ctx := context.Background()
+	processor := workers.NewDocumentProcessor(store, ctx, converter, storage)
 	processor.Work(errChan)
 }

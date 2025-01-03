@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"path/filepath"
 
 	db "github.com/FileConversionApi/db/sqlc"
@@ -13,17 +12,17 @@ type Server struct {
 	cfg            utils.Config
 	store          db.Store
 	router         *gin.Engine
-	ctx            context.Context
 	tokenGenerator utils.Generator
+	storage        utils.Storage
 }
 
-func NewServer(cfg utils.Config, tokenGenerator utils.Generator, store db.Store, ctx context.Context) *Server {
+func NewServer(cfg utils.Config, tokenGenerator utils.Generator, store db.Store, storage utils.Storage) *Server {
 
 	server := &Server{
 		cfg:            cfg,
 		store:          store,
 		tokenGenerator: tokenGenerator,
-		ctx:            ctx,
+		storage:        storage,
 	}
 
 	server.setupRouter()
