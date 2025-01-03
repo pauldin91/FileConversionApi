@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	db "github.com/FileConversionApi/db/sqlc"
+	"github.com/FileConversionApi/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -127,10 +128,10 @@ func (server *Server) retrieve(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, err)
 		return
 	}
-	if entry.Status == "processing" {
+	if entry.Status == string(utils.Processing) {
 		ctx.JSON(http.StatusOK, fmt.Sprintf("process of entry with ID %s is being %s", entry.ID.String(), entry.Status))
 		return
-	} else if entry.Status == "failed" {
+	} else if entry.Status == string(utils.Failed) {
 		ctx.JSON(http.StatusOK, fmt.Sprintf("process of entry with ID %s failed", entry.ID.String()))
 		return
 	}

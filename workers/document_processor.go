@@ -28,16 +28,13 @@ func NewDocumentProcessor(store db.Store, ctx context.Context, converter utils.C
 
 func (dp *DocumentProcessor) Work(errChan chan error) {
 	for {
-		// Check for shutdown signal
-		//select {
-		//case <-dp.ctx.Done():
-		//	// Graceful shutdown
-		//	return
-		//default:
-		//time.Sleep(time.Second)
-		// Fetch entries to process
+		select {
+		case <-dp.ctx.Done():
+			return
+		default:
+		}
 		entries, err := dp.store.GetEntriesByStatus(dp.ctx, db.GetEntriesByStatusParams{
-			Status: "processing",
+			Status: string(utils.Processing),
 			Limit:  10,
 		})
 		if err != nil {
@@ -55,7 +52,9 @@ func (dp *DocumentProcessor) Work(errChan chan error) {
 		for i := range complete {
 			<-complete[i]
 		}
-		//}
+		if len(entries) == 0 {
+			time.Sleep(time.Minute)
+		}
 	}
 }
 
@@ -97,7 +96,7 @@ func (dp *DocumentProcessor) processEntry(entry db.Entry, done chan bool) {
 	ok := <-doneChan
 
 	if !ok {
-		dp.updateOnCompletion(entry, "failed", 0.0)
+		dp.updateOnCompletion(entry, string(utils.Failed), 0.0)
 	} else {
 		doneChans := make([]chan bool, len(documents))
 		for i := range documents {
@@ -108,7 +107,7 @@ func (dp *DocumentProcessor) processEntry(entry db.Entry, done chan bool) {
 			<-doneChans[i]
 		}
 		timeElapsed := time.Since(start).Seconds()
-		dp.updateOnCompletion(entry, "success", timeElapsed)
+		dp.updateOnCompletion(entry, string(utils.Success), timeElapsed)
 
 	}
 	done <- ok
@@ -143,7 +142,7 @@ func (dp *DocumentProcessor) updateRetries(entry db.Entry, done chan bool) {
 		return
 	}
 	if current.MaxRetries == 0 {
-		dp.updateOnCompletion(entry, "failed", 0.0)
+		dp.updateOnCompletion(entry, string(utils.Failed), 0.0)
 		done <- false
 		return
 	}
