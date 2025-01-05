@@ -19,22 +19,6 @@ type Server struct {
 	cancel         context.CancelFunc
 }
 
-func NewServer(cfg utils.Config, tokenGenerator utils.Generator, store db.Store, parentCtx context.Context, storage utils.Storage) *Server {
-	ctx, cancel := context.WithCancel(parentCtx)
-	server := &Server{
-		cfg:            cfg,
-		store:          store,
-		tokenGenerator: tokenGenerator,
-		ctx:            ctx,
-		cancel:         cancel,
-		storage:        storage,
-	}
-
-	server.setupRouter()
-
-	return server
-}
-
 func (server *Server) Start() error {
 	certFile := filepath.Join(server.cfg.CertPath, server.cfg.CertFile)
 	certKey := filepath.Join(server.cfg.CertPath, server.cfg.CertKey)

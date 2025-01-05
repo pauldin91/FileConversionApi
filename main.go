@@ -32,54 +32,45 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	signalChan := setupSignalHandler(cancel)
 
 	connPool, err := pgxpool.New(ctx, config.ConnectionString)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot connect to db")
 	}
+	defer connPool.Close()
 
 	runDBMigration(config.MigrationLocation, config.ConnectionString)
 
 	store := db.NewStore(connPool)
 
-	converter := utils.PdfConverter{}
 	storage := utils.LocalStorage{}
-	errChan := make(chan error, 1)
+	errChan := make(chan error, 2)
 
-	// Launch the background processor
-	go launchProcessor(store, storage, ctx, converter, errChan)
+	converter := utils.PdfConverter{}
 
-	// Set up signal handling for graceful shutdown
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
-
-	// Create a wait group to ensure all goroutines finish before exiting
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	go func() {
-		defer wg.Done()
-		select {
-		case sig := <-signalChan:
-			log.Info().Msgf("Received signal: %s. Shutting down...", sig)
-			cancel()
-		case err := <-errChan:
-			log.Error().Err(err).Msg("Worker encountered an error. Shutting down...")
-			cancel()
-		}
-	}()
+	processor := workers.Builder().
+		WithConverter(converter).
+		WithCtx(ctx).
+		WithStorage(storage).
+		WithStore(store).
+		Build()
 
 	gen := utils.NewJwtGenerator(config.SigningKey)
-	server := api.NewServer(config, gen, store, ctx, storage)
+	server := api.
+		Builder().
+		WithCtx(ctx).
+		WithStore(store).
+		WithConfig(config).
+		WithStorage(storage).
+		WithTokenGen(gen).
+		Build()
 
-	go func() {
-		if err := server.Start(); err != nil {
-			log.Fatal().Err(err).Msg("Failed to start server")
-		}
-		cancel()
-	}()
+	go processor.Work(errChan)
+	go server.Start()
 
-	wg.Wait()
+	waitForShutdown(errChan, signalChan, cancel)
+
 	log.Info().Msg("Application shut down gracefully.")
 }
 
@@ -96,10 +87,40 @@ func runDBMigration(migrationURL string, dbSource string) {
 	log.Info().Msg("db migrated successfully")
 }
 
-func launchProcessor(store db.Store, storage utils.Storage, ctx context.Context, converter utils.Converter, errChan chan error) {
-	reqCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
+func waitForShutdown(errChan chan error, signalChan chan os.Signal, cancel context.CancelFunc) {
+	var wg sync.WaitGroup
+	wg.Add(1)
 
-	processor := workers.NewDocumentProcessor(store, reqCtx, converter, storage)
-	processor.Work(errChan)
+	go func() {
+		defer wg.Done()
+
+		// Wait for either a signal or an error from the worker/server
+		select {
+		case sig := <-signalChan:
+			log.Info().Msgf("Received signal: %s. Shutting down...", sig)
+			cancel() // Cancel the context to initiate shutdown
+		case err := <-errChan:
+			log.Error().Err(err).Msg("Worker/server encountered an error. Shutting down...")
+			cancel() // Cancel the context to initiate shutdown
+		}
+	}()
+
+	// Wait for the goroutine above to complete before allowing the app to exit
+	wg.Wait()
+}
+
+func setupSignalHandler(cancel context.CancelFunc) chan os.Signal {
+	signalChan := make(chan os.Signal, 1) // Buffered channel to avoid blocking
+
+	// Notify the channel on interrupt (SIGINT) and terminate (SIGTERM) signals
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// This goroutine will trigger the cancel function when a signal is received
+	go func() {
+		sig := <-signalChan
+		log.Info().Msgf("Received signal: %s. Shutting down...", sig)
+		cancel() // Trigger cancellation of the context to initiate graceful shutdown
+	}()
+
+	return signalChan
 }

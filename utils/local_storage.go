@@ -29,7 +29,7 @@ func (st LocalStorage) GetFiles(dirname string) ([]string, error) {
 
 }
 
-func (st LocalStorage) TransformName(dirname, filename string) (string, error) {
+func (st LocalStorage) GetConvertedFilename(dirname, filename string) (string, error) {
 	fullPath := dirname
 	contents, err := os.ReadDir(path.Join(rootDir, fullPath))
 	if err != nil {

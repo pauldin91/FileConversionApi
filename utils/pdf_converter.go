@@ -27,7 +27,6 @@ func (conv PdfConverter) Merge(filenames []string, outputFile string, done chan 
 		done <- false
 		return
 	}
-	log.Info().Msgf("Merged PDF successfully created: %s", outputFile)
 	done <- true
 }
 
@@ -49,7 +48,6 @@ func (conv PdfConverter) Convert(filenames []string, outputDir string, done chan
 		return
 	}
 
-	log.Info().Msg("All files converted successfully")
 	done <- true
 }
 
