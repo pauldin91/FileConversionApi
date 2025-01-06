@@ -18,34 +18,39 @@ type PdfProcessor struct {
 	cancel    context.CancelFunc
 }
 
-func (dp *PdfProcessor) Work(errChan chan error) {
-	for {
-		select {
-		case <-dp.ctx.Done():
-			return
-		default:
-		}
-		entries, err := dp.store.GetEntriesByStatus(dp.ctx, db.GetEntriesByStatusParams{
-			Status: string(utils.Processing),
-			Limit:  10,
-		})
-		if err != nil {
-			if err != pgx.ErrNoRows {
-				errChan <- err
-			}
-			continue
-		}
-		complete := make([]chan bool, len(entries))
-		for i := range entries {
-			complete[i] = make(chan bool)
-			go dp.processEntry(entries[i], complete[i])
-		}
+func (dp *PdfProcessor) Work() error {
+    for {
+        select {
+        case <-dp.ctx.Done():
+            return nil
+        default:
+            // Use a separate goroutine to avoid blocking here
+            entries, err := dp.store.GetEntriesByStatus(dp.ctx, db.GetEntriesByStatusParams{
+                Status: string(utils.Processing),
+                Limit:  10,
+            })
+            if err != nil {
+                if err == pgx.ErrNoRows {
+                    continue
+                } else {
+                    return err
+                }
+            }
 
-		for i := range complete {
-			<-complete[i]
-		}
-	}
+            complete := make([]chan bool, len(entries))
+            for i := range entries {
+                complete[i] = make(chan bool)
+                go dp.processEntry(entries[i], complete[i]) // Ensure processing happens in the background
+            }
+
+            // Wait for all goroutines to complete
+            for i := range complete {
+                <-complete[i]
+            }
+        }
+    }
 }
+
 
 func (dp *PdfProcessor) processEntry(entry db.Entry, done chan bool) {
 	documents, err := dp.store.GetDocumentsByEntryId(dp.ctx, db.GetDocumentsByEntryIdParams{
