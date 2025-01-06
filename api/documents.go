@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	db "github.com/FileConversionApi/db/sqlc"
+	"github.com/FileConversionApi/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -22,7 +23,8 @@ func (server *Server) convert(c *gin.Context) {
 	defer cancel()
 
 	operation := c.PostForm("operation")
-	if strings.ToLower(operation) != "convert" && strings.ToLower(operation) != "merge" {
+	if strings.ToLower(operation) != string(utils.Convert) &&
+		strings.ToLower(operation) != string(utils.Merge) {
 		c.JSON(http.StatusBadRequest, errors.New("invalid operation for documents"))
 		return
 	}
@@ -32,8 +34,8 @@ func (server *Server) convert(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, err.Error())
 		return
 	}
-
 	token := strings.Fields(c.GetHeader(authHeader))[1]
+
 	claims, err := server.tokenGenerator.Validate(token)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, err.Error())
@@ -41,26 +43,30 @@ func (server *Server) convert(c *gin.Context) {
 	}
 
 	user, err := server.store.GetUserByUsername(reqCtx, claims.Username)
+	entryId := uuid.New()
+
 	if err != nil {
 		c.JSON(http.StatusNotFound, err.Error())
 		return
 	}
 
-	entryId := uuid.New()
 	files := form.File["files"]
-
-	// Start background processing immediately without waiting
-	go func() {
-		server.storeUploadedFiles(c, files, entryId)
-		server.createEntryWithDocuments(files, db.CreateEntryWithIdParams{ID: entryId, UserID: user.ID, Operation: operation})
-	}()
-
-	// Respond to the client without waiting for background work
 	filenames := make([]string, len(files))
 	for i, file := range files {
 		filenames[i] = file.Filename
 	}
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	go func() {
+		server.storeUploadedFiles(c, files, entryId)
+		server.createEntryWithDocuments(files, db.CreateEntryWithIdParams{ID: entryId, UserID: user.ID, Operation: operation})
+	}()
 	c.JSON(http.StatusOK, fmt.Sprintf("Uploaded successfully files %s for %s with id %s", strings.Join(filenames, ","), operation, entryId))
+
 }
 
 func (server *Server) storeUploadedFiles(c *gin.Context, files []*multipart.FileHeader, entryId uuid.UUID) {
@@ -117,10 +123,10 @@ func (server *Server) retrieve(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, err)
 		return
 	}
-	if entry.Status == "processing" {
+	if entry.Status == string(utils.Processing) {
 		ctx.JSON(http.StatusOK, fmt.Sprintf("process of entry with ID %s is being %s", entry.ID.String(), entry.Status))
 		return
-	} else if entry.Status == "failed" {
+	} else if entry.Status == string(utils.Failed) {
 		ctx.JSON(http.StatusOK, fmt.Sprintf("process of entry with ID %s failed", entry.ID.String()))
 		return
 	}
