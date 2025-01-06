@@ -5,6 +5,7 @@ import (
 
 	db "github.com/FileConversionApi/db/sqlc"
 	"github.com/FileConversionApi/utils"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Generic ProcessorBuilder
@@ -18,8 +19,14 @@ func Builder() *ProcessorBuilder {
 	}
 }
 
-func (builder *ProcessorBuilder) WithStore(store db.Store) *ProcessorBuilder {
-	builder.processor.store = store
+func (builder *ProcessorBuilder) WithStore(pool *pgxpool.Pool) *ProcessorBuilder {
+	processorCtx, processorCancel := context.WithCancel(context.Background()) // Create context for the processor
+	processorStore := db.NewStore(pool)
+
+	builder.processor.ctx = processorCtx
+	builder.processor.cancel = processorCancel
+	builder.processor.store = processorStore
+	builder.processor.pool = pool
 	return builder
 }
 
@@ -30,13 +37,6 @@ func (builder *ProcessorBuilder) WithStorage(storage utils.Storage) *ProcessorBu
 
 func (builder *ProcessorBuilder) WithConverter(converter utils.Converter) *ProcessorBuilder {
 	builder.processor.converter = converter
-	return builder
-}
-
-func (builder *ProcessorBuilder) WithCtx(parentCtx context.Context) *ProcessorBuilder {
-	ctx, cancel := context.WithCancel(parentCtx)
-	builder.processor.ctx = ctx
-	builder.processor.cancel = cancel
 	return builder
 }
 

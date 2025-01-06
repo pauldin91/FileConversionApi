@@ -5,6 +5,7 @@ import (
 
 	db "github.com/FileConversionApi/db/sqlc"
 	"github.com/FileConversionApi/utils"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type ServerBuilder struct {
@@ -24,19 +25,19 @@ func (builder *ServerBuilder) WithTokenGen(gen utils.Generator) *ServerBuilder {
 	builder.server.tokenGenerator = gen
 	return builder
 }
-func (builder *ServerBuilder) WithStore(store db.Store) *ServerBuilder {
-	builder.server.store = store
+func (builder *ServerBuilder) WithStore(pool *pgxpool.Pool) *ServerBuilder {
+	srvCtx, srvCancel := context.WithCancel(context.Background()) // Create context for the processor
+
+	srvStore := db.NewStore(pool)
+
+	builder.server.ctx = srvCtx
+	builder.server.cancel = srvCancel
+	builder.server.store = srvStore
 	return builder
 }
 
 func (builder *ServerBuilder) WithStorage(storage utils.Storage) *ServerBuilder {
 	builder.server.storage = storage
-	return builder
-}
-func (builder *ServerBuilder) WithCtx(parentCtx context.Context) *ServerBuilder {
-	ctx, cancel := context.WithCancel(parentCtx)
-	builder.server.ctx = ctx
-	builder.server.cancel = cancel
 	return builder
 }
 

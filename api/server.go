@@ -11,7 +11,6 @@ import (
 	db "github.com/FileConversionApi/db/sqlc"
 	"github.com/FileConversionApi/utils"
 	"github.com/gin-gonic/gin"
-	"github.com/golang-migrate/migrate/v4"
 	"github.com/rs/zerolog/log"
 )
 
@@ -53,20 +52,7 @@ func (server *Server) setupRouter() {
 
 }
 
-func RunDBMigration(migrationURL string, dbSource string) {
-	migration, err := migrate.New(migrationURL, dbSource)
-	if err != nil {
-		log.Fatal().Err(err).Msg("cannot create new migrate instance")
-	}
-
-	if err = migration.Up(); err != nil && err != migrate.ErrNoChange {
-		log.Fatal().Err(err).Msg("failed to run migrate up")
-	}
-
-	log.Info().Msg("db migrated successfully")
-}
-
-func WaitForShutdown(errChan chan error, signalChan chan os.Signal, serverCancel, processorCancel context.CancelFunc) {
+func (server *Server) WaitForShutdown(errChan chan error, signalChan chan os.Signal) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
@@ -76,15 +62,13 @@ func WaitForShutdown(errChan chan error, signalChan chan os.Signal, serverCancel
 		select {
 		case sig := <-signalChan:
 			log.Info().Msgf("Received signal: %s. Shutting down...", sig)
-			serverCancel()
-			processorCancel()
+			server.cancel()
 		case <-errChan:
 			for {
 				err := <-errChan
 				if err != nil {
 					log.Info().Msgf("Received signal: %s. Shutting down...", err)
-					serverCancel()
-					processorCancel()
+					server.cancel()
 				}
 			}
 		}
@@ -94,7 +78,7 @@ func WaitForShutdown(errChan chan error, signalChan chan os.Signal, serverCancel
 	wg.Wait()
 }
 
-func SetupSignalHandler(serverCancel, processorCancel context.CancelFunc) chan os.Signal {
+func (server *Server) SetupSignalHandler() chan os.Signal {
 	signalChan := make(chan os.Signal, 1) // Buffered channel to avoid blocking
 
 	// Notify the channel on interrupt (SIGINT) and terminate (SIGTERM) signals
@@ -104,8 +88,8 @@ func SetupSignalHandler(serverCancel, processorCancel context.CancelFunc) chan o
 	go func() {
 		sig := <-signalChan
 		log.Info().Msgf("Received signal: %s. Shutting down...", sig)
-		serverCancel()    // Cancel the server context
-		processorCancel() // Cancel the processor context
+		server.cancel()
+
 	}()
 
 	return signalChan

@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	BatchCreateDocuments(ctx context.Context, arg BatchCreateDocumentsParams) error
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
 	CreateEntry(ctx context.Context, arg CreateEntryParams) (Entry, error)
 	CreateEntryWithId(ctx context.Context, arg CreateEntryWithIdParams) (Entry, error)

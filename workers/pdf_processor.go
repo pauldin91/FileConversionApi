@@ -2,12 +2,19 @@ package workers
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
+
+	"github.com/rs/zerolog/log"
 
 	db "github.com/FileConversionApi/db/sqlc"
 	"github.com/FileConversionApi/utils"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type PdfProcessor struct {
@@ -16,6 +23,7 @@ type PdfProcessor struct {
 	converter utils.Converter
 	storage   utils.Storage
 	cancel    context.CancelFunc
+	pool      *pgxpool.Pool
 }
 
 func (dp *PdfProcessor) Work() error {
@@ -24,7 +32,6 @@ func (dp *PdfProcessor) Work() error {
 		case <-dp.ctx.Done():
 			return nil
 		default:
-			// Use a separate goroutine to avoid blocking here
 			entries, err := dp.store.GetEntriesByStatus(dp.ctx, db.GetEntriesByStatusParams{
 				Status: string(utils.Processing),
 				Limit:  10,
@@ -40,10 +47,9 @@ func (dp *PdfProcessor) Work() error {
 			complete := make([]chan bool, len(entries))
 			for i := range entries {
 				complete[i] = make(chan bool)
-				go dp.processEntry(entries[i], complete[i]) // Ensure processing happens in the background
+				go dp.processEntry(entries[i], complete[i])
 			}
 
-			// Wait for all goroutines to complete
 			for i := range complete {
 				<-complete[i]
 			}
@@ -52,11 +58,28 @@ func (dp *PdfProcessor) Work() error {
 }
 
 func (dp *PdfProcessor) processEntry(entry db.Entry, done chan bool) {
+	conn, err := dp.pool.Acquire(dp.ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to acquire connection")
+		done <- false
+		return
+	}
+	defer conn.Release() // Release connection after processing
+
+	tx, err := conn.Begin(dp.ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to begin transaction")
+		done <- false
+		return
+	}
+	defer tx.Rollback(dp.ctx)
+
 	documents, err := dp.store.GetDocumentsByEntryId(dp.ctx, db.GetDocumentsByEntryIdParams{
 		EntryID: entry.ID,
 		Limit:   10,
 	})
 	start := time.Now()
+
 	if err != nil {
 		log.Printf("error reading entry with id %s ", entry.ID)
 		dp.updateRetries(entry, done)
@@ -79,6 +102,7 @@ func (dp *PdfProcessor) processEntry(entry db.Entry, done chan bool) {
 
 	doneChan := make(chan bool)
 
+	fmt.Printf("Start processing deposit with id %s\n", entry.ID)
 	if entry.Operation == string(utils.Merge) {
 		go dp.converter.Merge(files, entry.ID.String(), doneChan)
 	} else {
@@ -100,6 +124,11 @@ func (dp *PdfProcessor) processEntry(entry db.Entry, done chan bool) {
 		timeElapsed := time.Since(start).Seconds()
 		dp.updateOnCompletion(entry, string(utils.Success), timeElapsed)
 
+	}
+	if err := tx.Commit(dp.ctx); err != nil {
+		log.Error().Err(err).Msg("failed to commit transaction")
+		done <- false
+		return
 	}
 	done <- ok
 }
@@ -141,4 +170,44 @@ func (dp *PdfProcessor) updateRetries(entry db.Entry, done chan bool) {
 		MaxRetries: current.MaxRetries - 1,
 	})
 	done <- true
+}
+
+func (dp *PdfProcessor) SetupSignalHandler() chan os.Signal {
+	signalChan := make(chan os.Signal, 1) // Buffered channel to avoid blocking
+
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		sig := <-signalChan
+		log.Info().Msgf("Received signal: %s. Shutting down...", sig)
+		dp.cancel()
+	}()
+
+	return signalChan
+}
+
+func (server *PdfProcessor) WaitForShutdown(errChan chan error, signalChan chan os.Signal) {
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+
+		select {
+		case sig := <-signalChan:
+			log.Info().Msgf("Received signal: %s. Shutting down...", sig)
+			server.cancel()
+		case <-errChan:
+			for {
+				err := <-errChan
+				if err != nil {
+					log.Info().Msgf("Received signal: %s. Shutting down...", err)
+					server.cancel()
+				}
+			}
+		}
+
+	}()
+
+	wg.Wait()
 }

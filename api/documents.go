@@ -19,9 +19,9 @@ import (
 )
 
 func (server *Server) convert(c *gin.Context) {
-	//reqCtx, cancel := context.WithCancel(server.ctx)
-	//defer cancel()
-	//
+	reqCtx, cancel := context.WithCancel(server.ctx)
+	defer cancel()
+
 	operation := c.PostForm("operation")
 	if strings.ToLower(operation) != string(utils.Convert) &&
 		strings.ToLower(operation) != string(utils.Merge) {
@@ -42,7 +42,7 @@ func (server *Server) convert(c *gin.Context) {
 		return
 	}
 
-	user, err := server.store.GetUserByUsername(context.Background(), claims.Username)
+	user, err := server.store.GetUserByUsername(reqCtx, claims.Username)
 	entryId := uuid.New()
 
 	if err != nil {
@@ -62,51 +62,71 @@ func (server *Server) convert(c *gin.Context) {
 	}
 
 	go func() {
-		server.storeUploadedFiles(c, files, entryId)
-		server.createEntryWithDocuments(files, db.CreateEntryWithIdParams{ID: entryId, UserID: user.ID, Operation: operation})
+		if err := server.storeUploadedFiles(c, files, entryId); err != nil {
+			log.Err(err).Msg("Failed to store uploaded files")
+		}
+		if err := server.createEntryWithDocuments(files, db.CreateEntryWithIdParams{ID: entryId, UserID: user.ID, Operation: operation}); err != nil {
+			log.Err(err).Msg("Failed to create entry with documents")
+		}
 	}()
 	c.JSON(http.StatusOK, fmt.Sprintf("Uploaded successfully files %s for %s with id %s", strings.Join(filenames, ","), operation, entryId))
-
+	fmt.Printf("Exit deposit with id %s\n", entryId)
 }
 
-func (server *Server) storeUploadedFiles(c *gin.Context, files []*multipart.FileHeader, entryId uuid.UUID) {
-
+func (server *Server) storeUploadedFiles(c *gin.Context, files []*multipart.FileHeader, entryId uuid.UUID) error {
 	var wg sync.WaitGroup
+	errorChan := make(chan error, len(files))
+	defer close(errorChan)
+
 	for _, file := range files {
 		wg.Add(1)
 		go func(uploadedFile *multipart.FileHeader) {
 			defer wg.Done()
 			fullPath := server.storage.GetFilename(entryId.String(), uploadedFile.Filename)
-			if err := c.SaveUploadedFile(file, fullPath); err != nil {
-				log.Err(err).Msgf("unable to upload file %s", file.Filename)
+			if err := c.SaveUploadedFile(uploadedFile, fullPath); err != nil {
+				log.Err(err).Msgf("unable to upload file %s", uploadedFile.Filename)
+				errorChan <- err
 			}
 		}(file)
 	}
 	wg.Wait()
+
+	// Check for errors
+	if len(errorChan) > 0 {
+		return <-errorChan // Return the first error for simplicity
+	}
+	return nil
 }
 
-func (server *Server) createEntryWithDocuments(files []*multipart.FileHeader, entryParams db.CreateEntryWithIdParams) {
-	//reqCtx, cancel := context.WithCancel(server.ctx)
-	//defer cancel()
-	entry, _ := server.store.CreateEntryWithId(context.Background(), entryParams)
-	var wg sync.WaitGroup
-	for _, file := range files {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			filename := filepath.Base(file.Filename)
-			server.store.CreateDocument(context.Background(), db.CreateDocumentParams{
-				EntryID:  entry.ID,
-				Filename: filename,
-			})
-		}()
+func (server *Server) createEntryWithDocuments(files []*multipart.FileHeader, entryParams db.CreateEntryWithIdParams) error {
+	reqCtx := server.ctx
+	entry, err := server.store.CreateEntryWithId(reqCtx, entryParams)
+	if err != nil {
+		return err
 	}
-	wg.Wait()
+
+	var params []db.CreateDocumentParams
+	for _, file := range files {
+		params = append(params, db.CreateDocumentParams{
+			EntryID:  entry.ID,
+			Filename: filepath.Base(file.Filename),
+		})
+	}
+	batchParams := db.BatchCreateDocumentsParams{
+		Column1: make([]uuid.UUID, len(files)),
+		Column2: make([]string, len(files)),
+	}
+	for i := range params {
+		batchParams.Column1[i] = params[i].EntryID
+		batchParams.Column2[i] = params[i].Filename
+	}
+
+	return server.store.BatchCreateDocuments(reqCtx, batchParams)
 }
 
 func (server *Server) retrieve(ctx *gin.Context) {
-	//reqCtx, cancel := context.WithCancel(server.ctx)
-	//defer cancel()
+	reqCtx, cancel := context.WithCancel(server.ctx)
+	defer cancel()
 	var req entryRequest
 
 	if err := ctx.ShouldBindUri(&req); err != nil {
@@ -114,7 +134,7 @@ func (server *Server) retrieve(ctx *gin.Context) {
 		return
 	}
 	parsed, _ := uuid.Parse(req.Id)
-	entry, err := server.store.GetEntry(context.Background(), parsed)
+	entry, err := server.store.GetEntry(reqCtx, parsed)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			ctx.JSON(http.StatusNotFound, err)

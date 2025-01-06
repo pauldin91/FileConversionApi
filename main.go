@@ -4,20 +4,27 @@ import (
 	"context"
 	"os"
 
+	"github.com/FileConversionApi/api"
+	"github.com/FileConversionApi/utils"
+	"github.com/FileConversionApi/workers"
+	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-
-	"github.com/FileConversionApi/api"
-	db "github.com/FileConversionApi/db/sqlc"
-	"github.com/FileConversionApi/utils"
-	"github.com/FileConversionApi/workers"
 )
 
 func main() {
+	srvChan := make(chan error)
+	prcChan := make(chan error)
+
 	config, err := utils.LoadConfig(".")
+
+	storage := utils.LocalStorage{}
+	converter := utils.PdfConverter{}
+	gen := utils.NewJwtGenerator(config.SigningKey)
+
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot load config")
 	}
@@ -26,63 +33,55 @@ func main() {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	}
 
-	serverCtx, srvCancel := context.WithCancel(context.Background()) // Create context for the server
-	defer srvCancel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	// Database connection pool for server
-	srvConnPool, err := pgxpool.New(serverCtx, config.ConnectionString)
+	pool, err := pgxpool.New(ctx, config.ConnectionString)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot connect to db")
 	}
-	defer srvConnPool.Close()
-
-	srvStore := db.NewStore(srvConnPool)
-
-	// Context and cancel function for processor
-	processorCtx, processorCancel := context.WithCancel(context.Background()) // Create context for the processor
-	defer processorCancel()
-
-	// Database connection pool for processor
-	processorConnPool, err := pgxpool.New(serverCtx, config.ConnectionString)
-	if err != nil {
-		log.Fatal().Err(err).Msg("cannot connect to db")
-	}
-	defer processorConnPool.Close()
-
-	processorStore := db.NewStore(processorConnPool)
-
-	// Signal handler setup to catch SIGINT, SIGTERM
-	signalChan := api.SetupSignalHandler(srvCancel, processorCancel)
+	defer pool.Close()
 
 	// Database migration
-	api.RunDBMigration(config.MigrationLocation, config.ConnectionString)
 
-	storage := utils.LocalStorage{}
-	errChan := make(chan error, 2)
-
-	converter := utils.PdfConverter{}
 	processor := workers.Builder().
 		WithConverter(converter).
-		WithCtx(processorCtx).
 		WithStorage(storage).
-		WithStore(processorStore).
+		WithStore(pool).
 		Build()
 
-	gen := utils.NewJwtGenerator(config.SigningKey)
 	server := api.
 		Builder().
-		WithCtx(serverCtx).
-		WithStore(srvStore).
+		WithStore(pool).
 		WithConfig(config).
 		WithStorage(storage).
 		WithTokenGen(gen).
 		Build()
 
+	runDBMigration(config.MigrationLocation, config.ConnectionString)
+	// Signal handler setup to catch SIGINT, SIGTERM
+	srvSignalChan := server.SetupSignalHandler()
+	prcSignalChan := processor.SetupSignalHandler()
+
 	// Start background processor and server in goroutines
-	go func() { errChan <- processor.Work() }()
-	go func() { errChan <- server.Start() }()
+	go func() { srvChan <- processor.Work() }()
+	go func() { prcChan <- server.Start() }()
 
 	// Wait for shutdown signal or errors
-	api.WaitForShutdown(errChan, signalChan, srvCancel, processorCancel)
+	server.WaitForShutdown(srvChan, srvSignalChan)
+	processor.WaitForShutdown(prcChan, prcSignalChan)
 	log.Info().Msg("Application shut down gracefully.")
+}
+
+func runDBMigration(migrationURL string, dbSource string) {
+	migration, err := migrate.New(migrationURL, dbSource)
+	if err != nil {
+		log.Fatal().Err(err).Msg("cannot create new migrate instance")
+	}
+
+	if err = migration.Up(); err != nil && err != migrate.ErrNoChange {
+		log.Fatal().Err(err).Msg("failed to run migrate up")
+	}
+
+	log.Info().Msg("db migrated successfully")
 }

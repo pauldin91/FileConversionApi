@@ -12,6 +12,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const batchCreateDocuments = `-- name: BatchCreateDocuments :exec
+INSERT INTO documents (entry_id, filename)
+VALUES (
+  unnest($1::uuid[]),
+  unnest($2::text[])
+)
+`
+
+type BatchCreateDocumentsParams struct {
+	Column1 []uuid.UUID `json:"column_1"`
+	Column2 []string    `json:"column_2"`
+}
+
+func (q *Queries) BatchCreateDocuments(ctx context.Context, arg BatchCreateDocumentsParams) error {
+	_, err := q.db.Exec(ctx, batchCreateDocuments, arg.Column1, arg.Column2)
+	return err
+}
+
 const createDocument = `-- name: CreateDocument :one
 INSERT INTO documents (
   entry_id,

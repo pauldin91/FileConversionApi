@@ -46,3 +46,10 @@ WHERE username = $1;
 SELECT * FROM documents
 LIMIT $1
 OFFSET $2;
+
+-- name: BatchCreateDocuments :exec
+INSERT INTO documents (entry_id, filename)
+VALUES (
+  unnest($1::uuid[]),
+  unnest($2::text[])
+);
