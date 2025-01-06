@@ -58,7 +58,7 @@ func main() {
 	api.RunDBMigration(config.MigrationLocation, config.ConnectionString)
 
 	storage := utils.LocalStorage{}
-	errChan := make(chan error)
+	errChan := make(chan error, 2)
 
 	converter := utils.PdfConverter{}
 	processor := workers.Builder().

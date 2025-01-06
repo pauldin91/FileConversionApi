@@ -60,18 +60,14 @@ func (dp *PdfProcessor) processEntry(entry db.Entry, done chan bool) {
 	start := time.Now()
 	if err != nil {
 		log.Printf("error reading entry with id %s ", entry.ID)
-
 		dp.updateRetries(entry, done)
-		done <- false
 		return
 	}
 	var files []string
 	for i := range documents {
 		filename := dp.storage.GetFilename(entry.ID.String(), documents[i].Filename)
 		if !dp.storage.FileExists(filename) {
-
 			dp.updateRetries(entry, done)
-			done <- false
 			return
 		}
 		files = append(files, filename)
@@ -79,7 +75,6 @@ func (dp *PdfProcessor) processEntry(entry db.Entry, done chan bool) {
 
 	if len(files) == 0 || len(documents) != len(files) {
 		dp.updateRetries(entry, done)
-		done <- false
 		return
 	}
 
@@ -129,7 +124,6 @@ func (dp *PdfProcessor) updateDocumentPages(entry db.Entry, document *db.Documen
 		PageCount: pages,
 		ID:        document.ID,
 	})
-	done <- true
 }
 
 func (dp *PdfProcessor) updateRetries(entry db.Entry, done chan bool) {

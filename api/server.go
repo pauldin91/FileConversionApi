@@ -87,8 +87,6 @@ func WaitForShutdown(errChan chan error, signalChan chan os.Signal, serverCancel
 					processorCancel()
 				}
 			}
-
-		default:
 		}
 
 	}()
