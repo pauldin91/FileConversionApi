@@ -56,25 +56,15 @@ func (server *Server) convert(c *gin.Context) {
 		filenames[i] = file.Filename
 	}
 
-	var wg sync.WaitGroup
-	//wg.Add(1)
-	//go func() {
-	//	defer wg.Done()
-	server.storeUploadedFiles(c, files, entryId)
-	//}()
-	wg.Wait()
-
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
+		server.storeUploadedFiles(c, files, entryId)
 		server.createEntryWithDocuments(files, db.CreateEntryWithIdParams{ID: entryId, UserID: user.ID, Operation: operation})
 	}()
-	wg.Wait()
 	c.JSON(http.StatusOK, fmt.Sprintf("Uploaded successfully files %s for %s with id %s", strings.Join(filenames, ","), operation, entryId))
 
 }
