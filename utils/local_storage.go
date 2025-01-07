@@ -30,8 +30,8 @@ func (st LocalStorage) GetFiles(dirname string) ([]string, error) {
 }
 
 func (st LocalStorage) GetConvertedFilename(dirname, filename string) (string, error) {
-	fullPath := dirname
-	contents, err := os.ReadDir(path.Join(rootDir, fullPath))
+	fullPath := path.Join(rootDir, dirname)
+	contents, err := os.ReadDir(fullPath)
 	if err != nil {
 		return "", err
 	}
